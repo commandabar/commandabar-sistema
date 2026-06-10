@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CommandaBar - Criar Conta</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-900 text-gray-100 flex items-center justify-center min-h-screen px-4">
+
+    <div class="w-full max-w-md bg-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
+        
+        <div class="text-center mb-8">
+            <h2 class="text-3xl font-extrabold text-white">Crie sua Conta</h2>
+            <p class="text-gray-400 mt-2 text-sm">Insira seus dados para começar a usar o painel</p>
+        </div>
+
+        <form onsubmit="return false;" class="space-y-5">
+            
+            <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">E-mail Corporativo</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-500">
+                        <i class="fa-solid fa-envelope"></i>
+                    </span>
+                    <input type="email" id="cadastroEmail" required placeholder="seu@estabelecimento.com" 
+                           class="w-full pl-11 pr-4 py-3.5 bg-gray-700 border border-gray-600 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 transition">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Senha de Acesso</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-500">
+                        <i class="fa-solid fa-lock"></i>
+                    </span>
+                    <input type="password" id="cadastroSenha" required placeholder="••••••••" 
+                           class="w-full pl-11 pr-4 py-3.5 bg-gray-700 border border-gray-600 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 transition">
+                </div>
+            </div>
+
+            <button type="button" onclick="manipularCadastro()"
+                    class="w-full bg-[#f97316] hover:bg-orange-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-orange-500/10 flex items-center justify-center space-x-2 cursor-pointer">
+                <span>Criar Nova Conta</span>
+                <i class="fa-solid fa-arrow-right text-sm"></i>
+            </button>
+        </form>
+
+        <div class="mt-6 text-center text-sm text-gray-400">
+            <p>Já tem uma conta? <a href="login.html" class="font-bold text-orange-500 hover:text-orange-600 transition">Faça login aqui</a></p>
+            <a href="index.html" class="inline-block mt-4 text-xs hover:text-white transition">← Voltar para a página inicial</a>
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="database.js"></script>
+</body>
+</html>

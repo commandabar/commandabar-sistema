@@ -36,5 +36,45 @@ async function manipularLogin() {
     
     // Redireciona o usuário para a tela principal (Dashboard)
     window.location.href = 'dashboard.html';
+
+// --- FUNÇÃO DE CADASTRO DO COMMANDABAR ---
+async function manipularCadastro() {
+  // 1. Pega os valores que o usuário digitou na tela de cadastro
+  const email = document.getElementById('cadastroEmail').value;
+  const senha = document.getElementById('cadastroSenha').value;
+
+  // 2. Verifica preenchimento básico
+  if (!email || !senha) {
+    alert("Por favor, preencha todos os campos!");
+    return;
+  }
+
+  // 3. Validação de tamanho mínimo de senha exigido pelo Supabase (6 caracteres)
+  if (senha.length < 6) {
+    alert("A senha deve ter pelo menos 6 caracteres!");
+    return;
+  }
+
+  console.log("Tentando cadastrar usuário:", email);
+
+  // 4. Cadastra as credenciais no sistema de autenticação do Supabase
+  const { data, error } = await supabaseClient.auth.signUp({
+    email: email,
+    password: senha,
+  });
+
+  // 5. Trata a resposta
+  if (error) {
+    alert("Erro ao criar conta: " + error.message);
+  } else {
+    // Como desativamos a confirmação por e-mail no painel ontem, o usuário já entra ativo!
+    alert("Conta criada com sucesso! Você já pode entrar no sistema.");
+    
+    // Redireciona o usuário para a página de login
+    window.location.href = 'login.html';
+ 
+
+  }
+}
   }
 }
