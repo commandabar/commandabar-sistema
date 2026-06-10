@@ -64,3 +64,25 @@ async function manipularCadastro() {
     window.location.href = 'login.html';
   }
 } 
+
+// ---------------------------------------------------------
+// 3. FUNÇÃO DE RECUPERAÇÃO DE SENHA
+// ---------------------------------------------------------
+async function recuperarSenha() {
+  const email = prompt("Digite o e-mail cadastrado para redefinir sua senha:");
+
+  if (!email) {
+    return; // Se o usuário cancelar ou deixar em branco, não faz nada
+  }
+
+  // O Supabase envia um link de redefinição direto para o e-mail dele
+  const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '/dashboard.html', // Para onde ele vai após clicar no link do e-mail
+  });
+
+  if (error) {
+    alert("Erro ao enviar e-mail de recuperação: " + error.message);
+  } else {
+    alert("E-mail de recuperação enviado com sucesso! Verifique sua caixa de entrada.");
+  }
+}
