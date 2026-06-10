@@ -9,9 +9,10 @@ console.log("Arquivo database.js carregado e Supabase inicializado com sucesso!"
 // ... (Aqui para cima fica a inicialização do supabase e outras coisas)
 
 // ---------------------------------------------------------
-// 1. FUNÇÃO DE LOGIN 
+// 1. FUNÇÃO DE LOGIN
 // ---------------------------------------------------------
 async function manipularLogin() {
+  // Pegando os dados digitados na tela de login
   const email = document.getElementById('loginEmail').value;
   const senha = document.getElementById('loginSenha').value;
 
@@ -20,6 +21,9 @@ async function manipularLogin() {
     return;
   }
 
+  console.log("Tentando autenticar:", email);
+
+  // Fazendo o login oficial no Supabase
   const { data, error } = await supabaseClient.auth.signInWithPassword({
     email: email,
     password: senha,
@@ -28,10 +32,10 @@ async function manipularLogin() {
   if (error) {
     alert("Erro ao fazer login: " + error.message);
   } else {
+    // Se deu certo, salva o token e joga para o Dashboard!
     window.location.href = 'dashboard.html';
   }
-}  
-
+}
 
 // ---------------------------------------------------------
 // 2. FUNÇÃO DE CADASTRO (Totalmente fora e abaixo do Login)

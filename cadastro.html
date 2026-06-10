@@ -16,7 +16,7 @@
             <p class="text-gray-400 mt-2 text-sm">Insira seus dados para começar a usar o painel</p>
         </div>
 
-        <form onsubmit="event.preventDefault(); manipularCadastro();" class="space-y-5">
+        <form onsubmit="return false;" class="space-y-5">
             
             <div>
                 <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">E-mail Corporativo</label>
@@ -40,7 +40,7 @@
                 </div>
             </div>
 
-            <button type="submit"
+            <button type="button" onclick="manipularCadastro()"
                     class="w-full bg-[#f97316] hover:bg-orange-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-orange-500/10 flex items-center justify-center space-x-2 cursor-pointer">
                 <span>Criar Nova Conta</span>
                 <i class="fa-solid fa-arrow-right text-sm"></i>
@@ -55,6 +55,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="database.js?v=2"></script>
+    <script src="database.js"></script>
 </body>
 </html>

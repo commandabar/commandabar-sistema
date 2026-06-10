@@ -1,6 +1,27 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
+
+    <meta charset="UTF-8">
+    <title>CommandaBar - Dashboard</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="database.js?v=2"></script>
+
+    <script>
+        // Script Guardião: Roda antes mesmo da página carregar o visual
+        async function checarAcesso() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            
+            // Se não existir uma sessão ativa, manda de volta pro login
+            if (!session) {
+                alert("Acesso negado! Por favor, faça login primeiro.");
+                window.location.href = 'login.html';
+            }
+        }
+        checarAcesso();
+    </script>
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CommandaBar - Painel de Controle</title>
