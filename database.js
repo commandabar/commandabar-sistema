@@ -72,7 +72,6 @@ async function manipularCadastro() {
     
     // Redireciona o usuário para a página de login
     window.location.href = 'login.html';
- 
 
   }
 }
