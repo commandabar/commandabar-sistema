@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://zvfshfyombjogsuaasjq.supabase.co'; 
-const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_PUBLIC_AQUI'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_QPxQtNvxslk4JFVFCuAVsg_PWam9cGD'; 
 
 // Mudamos o nome da constante aqui para 'supabaseClient' para evitar o erro de duplicação:
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
