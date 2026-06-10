@@ -5,3 +5,36 @@ const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_PUBLIC_AQUI';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 console.log("Arquivo database.js carregado e Supabase inicializado com sucesso!");
+
+// --- FUNÇÃO DE LOGIN DO COMMANDABAR ---
+async function manipularLogin() {
+  // 1. Pega os valores que o usuário digitou na tela
+  const email = document.getElementById('loginEmail').value;
+  const senha = document.getElementById('loginSenha').value;
+
+  // 2. Verifica se o usuário não deixou nada em branco
+  if (!email || !senha) {
+    alert("Por favor, preencha todos os campos!");
+    return;
+  }
+
+  console.log("Tentando fazer login com:", email);
+
+  // 3. Envia os dados para o Supabase validar
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email: email,
+    password: senha,
+  });
+
+  // 4. Trata a resposta do banco de dados
+  if (error) {
+    // Se a senha estiver errada ou o usuário não existir, entra aqui:
+    alert("Erro ao entrar: " + error.message);
+  } else {
+    // Se estiver tudo certo, entra aqui:
+    alert("Login efetuado com sucesso!");
+    
+    // Redireciona o usuário para a tela principal (Dashboard)
+    window.location.href = 'dashboard.html';
+  }
+}
