@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CommandaBar - Gestão Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Animação de Fade-out para a tela de abertura */
+        .splash-hidden {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease-out;
+        }
+        /* Configuração de Perspectiva para o efeito 3D nos cards */
+        .perspective-card {
+            perspective: 1000px;
+            transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1), shadow 0.4s ease, border-color 0.4s ease;
+        }
+        .perspective-card:hover {
+            transform: translateY(-8px) rotateX(4px) rotateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans antialiased overflow-x-hidden">
+
+    <div id="splash-screen" class="fixed inset-0 bg-[#111827] flex flex-col items-center justify-center z-50">
+        <div class="flex items-center space-x-3 animate-pulse">
+            <div class="bg-[#f97316] p-3 rounded-2xl shadow-xl shadow-orange-500/20">
+                <i class="fa-solid fa-utensils text-3xl text-white"></i>
+            </div>
+            <span class="text-4xl font-black tracking-tight text-white">Commanda<span class="text-orange-500">Bar</span></span>
+        </div>
+        <p class="text-gray-400 text-sm mt-4 font-medium tracking-wide">Carregando ecossistema de gestão...</p>
+    </div>
+
+    <nav class="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100 hidden md:block">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <div class="bg-[#f97316] p-2 rounded-xl">
+                    <i class="fa-solid fa-utensils text-lg text-white"></i>
+                </div>
+                <span class="text-xl font-black tracking-tight text-orange-500">Commanda<span class="text-gray-900">Bar</span></span>
+            </div>
+            <button onclick="verificarAcesso()" class="bg-gray-900 hover:bg-orange-600 text-white font-bold px-6 py-2.5 rounded-xl transition shadow-lg shadow-gray-900/10 text-sm flex items-center gap-2">
+                <span>Acessar Sistema</span>
+                <i class="fa-solid fa-right-to-bracket"></i>
+            </button>
+        </div>
+    </nav>
+
+    <section class="py-20 bg-gray-900 text-white">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <span class="text-orange-500 font-bold uppercase tracking-wider text-sm block mb-3">Preços Transparentes</span>
+                <h2 class="text-4xl md:text-5xl font-black tracking-tight mb-4">Escolha o plano ideal para o tamanho do seu negócio</h2>
+                <p class="text-gray-400 text-lg">Controle total na palma da mão, sem taxas escondidas ou surpresas no fim do mês.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                
+                <div class="bg-gray-800/50 border-2 border-gray-700 rounded-3xl p-8 perspective-card flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-6">
+                            <div>
+                                <h3 class="text-2xl font-black">Plano Free</h3>
+                                <p class="text-gray-400 text-sm mt-1">Para começar sua operação comercial</p>
+                            </div>
+                            <span class="bg-gray-700 text-gray-300 font-bold text-xs px-3 py-1 rounded-full uppercase">Free</span>
+                        </div>
+                        <div class="mb-6">
+                            <span class="text-5xl font-black">R$ 0</span>
+                            <span class="text-gray-400 text-sm">/ sempre</span>
+                        </div>
+                        <p class="text-orange-400 text-sm font-semibold mb-6">
+                            <i class="fa-solid fa-gift mr-1"></i> Inclui 7 dias de Plano Premium!
+                        </p>
+                        <ul class="space-y-4 text-gray-300 border-t border-gray-700 pt-6">
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-500"></i> 1 acesso simultanio</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-500"></i> Gestão de Mesas e Comandas</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-500"></i> Cardápio Digital Simples</li>
+                            <li class="flex items-center gap-2 text-gray-500 line-through"><i class="fa-solid fa-xmark text-red-500"></i> Controle de Estoque Avançado</li>
+                        </ul>
+                    </div>
+                    <button onclick="verificarAcesso()" class="block text-center w-full mt-8 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition">Começar Agora</button>
+                </div>
+
+                <div class="bg-gray-800 border-2 border-orange-500 rounded-3xl p-8 perspective-card relative flex flex-col justify-between shadow-2xl shadow-orange-500/10">
+                    <div class="absolute -top-4 right-6 bg-orange-500 text-black text-xs font-black uppercase px-4 py-1.5 rounded-full shadow-lg">Mais Vendido</div>
+                    <div>
+                        <div class="flex justify-between items-start mb-6">
+                            <div>
+                                <h3 class="text-2xl font-black text-orange-500">Plano Pro</h3>
+                                <p class="text-gray-400 text-sm mt-1">Gestão completa e sem limites operacionais</p>
+                            </div>
+                            <span class="bg-orange-500/20 text-orange-400 font-bold text-xs px-3 py-1 rounded-full uppercase">Premium</span>
+                        </div>
+                        <div class="mb-6">
+                            <span class="text-5xl font-black text-white">R$ 39</span>
+                            <span class="text-gray-400 text-sm">,90 / mês</span>
+                        </div>
+                        <p class="text-green-400 text-sm font-semibold mb-6">
+                            <i class="fa-solid fa-bolt mr-1"></i> Liberação imediata de todas as travas
+                        </p>
+                        <ul class="space-y-4 text-gray-300 border-t border-orange-500/30 pt-6">
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-orange-500"></i> 5 acessos simultanio</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-orange-500"></i> Mesas Ilimitadas no Salão</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-orange-500"></i> Controle de Estoque Automático</li>
+                            <li class="flex items-center gap-2"><i class="fa-solid fa-check text-orange-500"></i> Relatórios de Caixa e Fechamento</li>
+                            <li class="flex items-center gap-2 font-medium text-orange-400"><i class="fa-solid fa-gift"></i> Aproveite: 2 meses por R$ 19,90</li>
+                        </ul>
+                    </div>
+                    <button onclick="verificarAcesso()" class="block text-center w-full mt-8 py-3 bg-green-500 hover:bg-green-600 text-black rounded-xl font-bold transition">Garantir Desconto</button>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // Controla o fechamento da tela de abertura após 1.5 segundos
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const splash = document.getElementById('splash-screen');
+                if (splash) {
+                    splash.classList.add('splash-hidden');
+                }
+            }, 1500);
+        });
+
+        // Verifica se o usuário já logou ou se precisa ir para a tela de login
+        function verificarAcesso() {
+            const usuarioLogado = localStorage.getItem('usuarioLogado');
+
+            if (usuarioLogado === 'true') {
+                // Se já estiver logado, pula direto para o painel
+                window.location.href = 'dashboard.html';
+            } else {
+                // Se for o primeiro acesso, manda para a tela de login
+                window.location.href = 'login.html';
+            }
+        }
+    </script>
+</body>
+</html>
