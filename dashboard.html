@@ -139,18 +139,7 @@
                     </div>
                 </div>
 
-                <div class="mt-8 pt-6 border-t border-dashed border-gray-200 bg-gray-50 p-4 rounded-2xl">
-                    <span class="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-3 text-center">
-                        🧪 Alternador de Planos (Painel de Testes)
-                    </span>
-                    <div class="grid grid-cols-2 gap-2 max-w-md mx-auto">
-                        <button id="btn-test-free" onclick="atualizarStatusPlano('free')" class="py-2 px-2 text-[11px] font-bold border rounded-xl transition bg-white text-gray-700 border-gray-200">
-                            Plano Free
-                        </button>
-                        <button id="btn-test-premium" onclick="atualizarStatusPlano('premium')" class="py-2 px-2 text-[11px] font-bold border rounded-xl transition bg-white text-gray-700 border-gray-200">
-                            Plano Premium
-                        </button>
-                    </div>
+            
                 </div>
             </div>
         </section>
@@ -479,14 +468,9 @@
         }
         setInterval(atualizarRelogioSalao, 1000);
 
-        let categoriasAtivas = ["Bebidas", "Porções", "Hambúrgueres"];
+        let categoriasAtivas = [];
         
-        let cardapioProdutos = [
-            { nome: "Coca Cola Lata 350ml", preco: 7.00, categoria: "Bebidas", estoque: 12 },
-            { nome: "Batata Frita Tradicional", preco: 30.00, categoria: "Porções", estoque: 2 },
-            { nome: "Hambúrguer Artesanal Da Casa", preco: 35.00, categoria: "Hambúrgueres", estoque: 15 },
-            { nome: "Cerveja Heineken Long Neck", preco: 12.00, categoria: "Bebidas", estoque: 0 }
-        ];
+        let cardapioProdutos = [];
 
         let mesaSelecionadaIndex = null; 
         let metodoPagamentoSelecionado = "pix"; 
@@ -499,12 +483,7 @@
         // Layout inicial de mesas
         let mesas = [
             { id: "Mesa 01", status: "Livre", valor: 0.00, hora: "-", itens: [] },
-            { id: "Mesa 02", status: "Ocupada", valor: 30.00, hora: "06/06/2026 às 17:23", itens: [
-                {nome: "Batata Frita Tradicional", qtd: 1, preco: 30.00, total: 30.00}
-            ]},
-            { id: "Mesa 03", status: "Livre", valor: 0.00, hora: "-", itens: [] },
-            { id: "Mesa 04", status: "Livre", valor: 0.00, hora: "-", itens: [] },
-            { id: "Mesa 05", status: "Livre", valor: 0.00, hora: "-", itens: [] }
+            
         ];
 
         let historicoFechamento = {
@@ -587,7 +566,7 @@
 
         function verificarLimiteCategoriasExcedido() {
             if (planoAtualAtivo === 'free' && categoriasAtivas.length >= 5) {
-                alert("⚠️ Limite de Categorias Atingido! O Plano Free permite o cadastro de no máximo 5 categorias. Migre para o Plano Premium para ter cadastros ILIMITADOS!");
+                alert("⚠️ Limite de Categorias Atingido! O Plano Free permite o cadastro de no máximo 3 categorias. Migre para o Plano Premium para ter cadastros ILIMITADOS!");
                 return true;
             }
             return false;
@@ -1281,17 +1260,17 @@
             janelaImpressao.document.close();
         }
 
-        window.onload = () => {
+       indow.onload = () => {
             carregarPerfil();
             atualizarRelogioSalao();
             renderizarCategorias();
             renderizarProdutosCardapio();
             atualizarSelectCardapioSalao();
-            
-            // Inicializa no Plano Premium por padrão
-            atualizarStatusPlano('premium');
-            mudarAba('perfil');
-        };
+    
+    // Removemos a linha 'renderizarSalao();' que causava o erro.
+    // A função abaixo garante que a aba inicial seja aberta corretamente.
+    mudarAba('perfil'); 
+};
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="database.js?v=2"></script>
