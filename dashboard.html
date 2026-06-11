@@ -1297,32 +1297,38 @@
     <script src="database.js?v=2"></script>
 
     <script>
-        async function verificarPlanoDoUsuario() {
-            // 1. Pega o usuário logado
-            const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    async function verificarPlanoDoUsuario() {
+        // 1. Pega o usuário logado
+        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
 
-            if (userError || !user) {
-                window.location.href = 'login.html';
-                return;
-            }
-
-            // 2. Lê os metadados do plano
-            const planoUsuario = user.user_metadata?.plano || 'free';
-            console.log("Plano do usuário ativo:", planoUsuario);
-
-            // 3. Se for free, aplica as travas
-            if (planoUsuario === 'free') {
-                const estoqueReal = document.getElementById('conteudo-estoque-real');
-                const telaBloqueio = document.getElementById('tela-bloqueio-estoque-free');
-
-                if (estoqueReal) estoqueReal.classList.add('hidden');
-                if (telaBloqueio) telaBloqueio.classList.remove('hidden');
-            }
+        if (userError || !user) {
+            window.location.href = 'login.html';
+            return;
         }
 
-        // Executa assim que a tela terminar de carregar
-        document.addEventListener('DOMContentLoaded', verificarPlanoDoUsuario);
-    </script>
+        // Captura o plano de dentro dos metadados criados no cadastro
+        const planoUsuario = user.user_metadata?.plano;
+        console.log("Plano bruto vindo do Supabase:", planoUsuario);
+
+        const estoqueReal = document.getElementById('conteudo-estoque-real');
+        const telaBloqueio = document.getElementById('tela-bloqueio-estoque-free');
+
+        // 2. REGRA RIGOROSA: Só entra no Pro se estiver explicitamente escrito 'pro'
+        if (planoUsuario === 'pro') {
+            console.log("Acesso PRO Liberado!");
+            if (estoqueReal) estoqueReal.classList.remove('hidden');
+            if (telaBloqueio) telaBloqueio.classList.add('hidden');
+        } else {
+            // Se for 'free', null, undefined ou qualquer outra coisa: TRAVA!
+            console.log("Acesso FREE detectado. Aplicando travas...");
+            if (estoqueReal) estoqueReal.classList.add('hidden');
+            if (telaBloqueio) telaBloqueio.classList.remove('hidden');
+        }
+    }
+
+    // Executa assim que a tela terminar de carregar
+    document.addEventListener('DOMContentLoaded', verificarPlanoDoUsuario);
+</script>
 </body>
 </html>
 </body>
