@@ -933,32 +933,98 @@
         }
 
         function renderizarEstoqueDinamico() {
-            if (planoAtualAtivo !== 'free') {
-                renderistarTabelaEstoqueDados();
-            }
-            atualizarAlertasSino();
+    const tbody = document.getElementById('tabela-estoque-corpo'); // verifique se o ID é exatamente esse no seu HTML
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    cardapioProdutos.forEach((prod, index) => {
+        // CORREÇÃO 1: Evita o [object Object] na coluna de categoria
+        const nomeCategoria = typeof prod.categoria === 'object' ? prod.categoria.nome : prod.categoria;
+        
+        // CORREÇÃO 2: Garante que lê o estoque real vindo do banco (se não tiver, assume 0)
+        const estoqueAtual = prod.estoque !== undefined && prod.estoque !== null ? prod.estoque : 0;
+
+        // Define a cor e o texto do badge de status igual ao seu design original
+        let statusBadge = `<span class="bg-red-50 text-red-600 px-2 py-1 rounded-full text-xs font-semibold">Crítico</span>`;
+        if (estoqueAtual > 10) {
+            statusBadge = `<span class="bg-green-50 text-green-600 px-2 py-1 rounded-full text-xs font-semibold">Bom</span>`;
+        } else if (estoqueAtual > 0) {
+            statusBadge = `<span class="bg-yellow-50 text-yellow-600 px-2 py-1 rounded-full text-xs font-semibold">Alerta</span>`;
         }
 
-        function alterarEstoqueManual(index, operacao) {
-            let novo = cardapioProdutos[index].estoque + operacao;
-            if (novo < 0) return;
-            cardapioProdutos[index].estoque = novo;
-            renderistarTabelaEstoqueDados();
-            atualizarAlertasSino();
+        tbody.innerHTML += `
+            <tr class="border-b hover:bg-gray-50 text-sm text-gray-700">
+                <td class="p-4 font-bold text-gray-900">${prod.nome}</td>
+                <td class="p-4 text-gray-500">${nomeCategoria}</td>
+                <td class="p-4">
+                    <div class="flex items-center space-x-2">
+                        <button onclick="atualizarEstoqueUnitario(${index}, -1)" class="px-2 py-1 bg-gray-100 rounded text-gray-600 hover:bg-gray-200 font-bold">-</button>
+                        <span class="w-8 text-center font-semibold">${estoqueAtual} un</span>
+                        <button onclick="atualizarEstoqueUnitario(${index}, 1)" class="px-2 py-1 bg-gray-100 rounded text-gray-600 hover:bg-gray-200 font-bold">+</button>
+                    </div>
+                </td>
+                <td class="p-4">${statusBadge}</td>
+            </tr>
+        `;
+    });
+
+        }
+
+        async function alterarEstoqueManual(index, operacao) {
+    const produto = cardapioProdutos[index];
+    if (!produto) return;
+
+    // Garante que o estoque atual seja lido como número válido
+    let estoqueAtual = produto.estoque !== undefined && produto.estoque !== null ? produto.estoque : 0;
+    
+    // Calcula o novo valor
+    let novo = estoqueAtual + operacao;
+    if (novo < 0) return; // Impede estoque negativo igual ao seu original
+
+    // 1. Atualiza na memória local para manter a resposta da tela instantânea
+    produto.estoque = novo;
+    
+    // 2. Dispara as suas funções originais de atualizar a tela e o sininho
+    renderistarTabelaEstoqueDados();
+    atualizarAlertasSino();
+
+    // 3. Salva de verdade no Supabase para nunca mais sumir no F5!
+    try {
+        const { error } = await supabaseClient
+            .from('produtos')
+            .update({ estoque: novo })
+            .eq('id', produto.id);
+
+        if (error) throw error;
+        console.log("Estoque sincronizado no Supabase!");
+    } catch (err) {
+        console.error("Erro ao sincronizar estoque:", err.message);
+    }
+
         }
 
         function renderizarCategorias() {
-            const tbody = document.getElementById('tabela-lista-categorias');
-            const selectProduto = document.getElementById('select-categorias-produto');
-            if(!tbody || !selectProduto) return;
-            tbody.innerHTML = ""; selectProduto.innerHTML = "";
+    const tbody = document.getElementById('tabela-lista-categorias');
+    const selectProduto = document.getElementById('select-categorias-produto');
+    if(!tbody || !selectProduto) return;
+    tbody.innerHTML = ""; selectProduto.innerHTML = "";
 
-            categoriasAtivas.forEach((cat, index) => {
-                tbody.innerHTML += `<tr class="hover:bg-gray-50"><td class="p-4 font-bold text-gray-900">${cat}</td><td class="p-4 text-right"><button onclick="removerCategoriaDinamica(${index})" class="text-red-500 font-semibold text-xs">Excluir</button></td></tr>`;
-                selectProduto.innerHTML += `<option value="${cat}">${cat}</option>`;
-            });
-            atualizarTravasFormulariosVisuais();
-        }
+    categoriasAtivas.forEach((cat, index) => {
+        // CORREÇÃO AQUI: Se for um objeto do Supabase, pega o .nome. Se for texto puro, usa direto.
+        const nomeCategoria = typeof cat === 'object' ? cat.nome : cat;
+
+        tbody.innerHTML += `
+            <tr class="hover:bg-gray-50">
+                <td class="p-4 font-bold text-gray-900">${nomeCategoria}</td>
+                <td class="p-4 text-right">
+                    <button onclick="removerCategoriaDinamica(${index})" class="text-red-500 font-semibold text-xs">Excluir</button>
+                </td>
+            </tr>`;
+            
+        selectProduto.innerHTML += `<option value="${nomeCategoria}">${nomeCategoria}</option>`;
+    });
+    atualizarTravasFormulariosVisuais();
+}
 
         async function criarNovaCategoriaDinamica() {
     const inputNome = document.getElementById('input-nome-categoria');
