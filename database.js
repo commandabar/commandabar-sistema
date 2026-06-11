@@ -38,7 +38,7 @@ async function manipularLogin() {
 }
 
 // ---------------------------------------------------------
-// 2. FUNÇÃO DE CADASTRO (Totalmente fora e abaixo do Login)
+// FUNÇÃO DE CADASTRO ATUALIZADA (COM CAPTURA DE PLANO)
 // ---------------------------------------------------------
 async function manipularCadastro() {
   const email = document.getElementById('cadastroEmail').value;
@@ -49,25 +49,40 @@ async function manipularCadastro() {
     return;
   }
 
-  if (senha.length < 6) {
-    alert("A senha deve tener pelo menos 6 caracteres!");
-    return;
-  }
+  // 1. Pega o plano que guardámos na memória (se não encontrar, assume 'free')
+  const planoEscolhido = localStorage.getItem('plano_selecionado') || 'free';
+  console.log("Criando conta para o plano:", planoEscolhido);
 
-  console.log("Tentando cadastrar usuário:", email);
-
+  // 2. Faz o cadastro oficial no Supabase Auth
   const { data, error } = await supabaseClient.auth.signUp({
     email: email,
     password: senha,
+    // Passamos o plano dentro de options.data para o Supabase guardar nos metadados do utilizador
+    options: {
+      data: {
+        plano: planoEscolhido
+      }
+    }
   });
 
   if (error) {
     alert("Erro ao criar conta: " + error.message);
   } else {
-    alert("Conta criada com sucesso! Você já pode entrar no sistema.");
-    window.location.href = 'login.html';
+    alert("Conta criada com sucesso!");
+
+    // 3. SEPARAÇÃO DOS PLANOS (Passo 1 e Passo 2 que mapeaste)
+    if (planoEscolhido === 'pro') {
+      // Se for PRO, limpa a memória e manda para a tela de pagamento/checkout
+      localStorage.removeItem('plano_selecionado');
+      alert("A redirecionar para a página de pagamento do Plano Pro...");
+      window.location.href = 'checkout.html'; // Podes criar esta página ou pôr o link do Stripe/Mercado Pago aqui
+    } else {
+      // Se for FREE, manda direto para o Dashboard
+      localStorage.removeItem('plano_selecionado');
+      window.location.href = 'dashboard.html';
+    }
   }
-} 
+}
 
 // ---------------------------------------------------------
 // 3. FUNÇÃO DE RECUPERAÇÃO DE SENHA
