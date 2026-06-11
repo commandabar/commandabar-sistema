@@ -450,7 +450,7 @@
                 </p>
 
                 <div class="mt-6">
-                    <a href="https://wa.me/seu_numero_aqui" target="_blank" class="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#20ba56] text-white font-bold px-6 py-3.5 rounded-xl text-sm transition-all shadow-md">
+                    <a href="https://wa.me/+5581996332963" target="_blank" class="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#20ba56] text-white font-bold px-6 py-3.5 rounded-xl text-sm transition-all shadow-md">
                         <i class="fa-brands fa-whatsapp text-lg"></i> Chamar no WhatsApp
                     </a>
                 </div>
@@ -1293,6 +1293,37 @@
             mudarAba('perfil');
         };
     </script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="database.js?v=2"></script>
+
+    <script>
+        async function verificarPlanoDoUsuario() {
+            // 1. Pega o usuário logado
+            const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+            if (userError || !user) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // 2. Lê os metadados do plano
+            const planoUsuario = user.user_metadata?.plano || 'free';
+            console.log("Plano do usuário ativo:", planoUsuario);
+
+            // 3. Se for free, aplica as travas
+            if (planoUsuario === 'free') {
+                const estoqueReal = document.getElementById('conteudo-estoque-real');
+                const telaBloqueio = document.getElementById('tela-bloqueio-estoque-free');
+
+                if (estoqueReal) estoqueReal.classList.add('hidden');
+                if (telaBloqueio) telaBloqueio.classList.remove('hidden');
+            }
+        }
+
+        // Executa assim que a tela terminar de carregar
+        document.addEventListener('DOMContentLoaded', verificarPlanoDoUsuario);
+    </script>
+</body>
+</html>
 </body>
 </html>
