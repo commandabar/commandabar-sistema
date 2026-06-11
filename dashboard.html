@@ -960,12 +960,61 @@
             atualizarTravasFormulariosVisuais();
         }
 
-        function criarNovaCategoriaDinamica() {
-            if (verificarLimiteCategoriasExcedido()) return;
-            const input = document.getElementById('input-nome-categoria');
-            if (!input.value.trim()) return;
-            categoriasAtivas.push(input.value.trim());
-            input.value = ""; renderizarCategorias();
+        async function criarNovaCategoriaDinamica() {
+    const inputNome = document.getElementById('input-nome-categoria');
+    const nomeCategoria = inputNome?.value.trim();
+
+    if (!nomeCategoria) return;
+
+    try {
+        // 1. Pega a sessão do usuário logado
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            alert("Sessão expirada. Faça login novamente.");
+            return;
+        }
+        const user_id = session.user.id;
+
+        // 2. BUSCA O PLANO DO USUÁRIO: Verifica se é 'free' ou 'pro'/'premium'
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        const planoUsuario = user?.user_metadata?.plano || 'free';
+
+        // 3. SE FOR FREE: Verifica se já tem 3 ou mais categorias cadastradas
+        if (planoUsuario === 'free') {
+            const { count, error: countError } = await supabaseClient
+                .from('categorias')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user_id);
+
+            if (countError) throw countError;
+
+            if (count >= 3) {
+                alert("Limite atingido! O Plano Free permite apenas até 3 categorias. Mude para o plano Pro para ter acesso ilimitado.");
+                return;
+            }
+        }
+
+        // 4. Se passou na validação, faz o INSERT no banco
+        const { error } = await supabaseClient.from('categorias').insert([
+            { 
+                nome: nomeCategoria,
+                user_id: user_id
+            }
+        ]);
+
+        if (error) throw error;
+
+        alert("Categoria salva com sucesso!");
+        if (inputNome) inputNome.value = "";
+        
+        // Atualiza a tela puxando o dado atualizado do banco
+        await carregarCategoriasDoBanco(); 
+
+    } catch (error) {
+        console.error("Erro ao salvar categoria:", error.message);
+        alert("Erro ao salvar categoria no banco de dados.");
+    }
+
         }
 
         function removerCategoriaDinamica(index) {
@@ -981,20 +1030,75 @@
             atualizarTravasFormulariosVisuais();
         }
 
-        function cadastrarNovoProdutoDinamico() {
-            if (verificarLimiteProdutosExcedido()) return;
-            const nome = document.getElementById('input-nome-produto').value.trim();
-            const preco = parseFloat(document.getElementById('input-preco-produto').value);
-            const category = document.getElementById('select-categorias-produto').value;
+        async function cadastrarNovoProdutoDinamico() {
+    const inputNome = document.getElementById('input-nome-produto');
+    const inputPreco = document.getElementById('input-preco-produto');
+    const selectCategoria = document.getElementById('select-categorias-produto');
 
-            cardapioProdutos.push({ nome, preco, categoria: category, estoque: 10 });
-            document.getElementById('input-nome-produto').value = "";
-            document.getElementById('input-preco-produto').value = "";
+    const nome = inputNome?.value.trim();
+    const preco = parseFloat(inputPreco?.value);
+    const categoria = selectCategoria?.value;
 
-            renderizarProdutosCardapio();
-            renderizarEstoqueDinamico();
-            atualizarSelectCardapioSalao();
+    if (!nome || isNaN(preco) || !categoria) {
+        alert("Preencha todos os campos corretamente.");
+        return;
+    }
+
+    try {
+        // 1. Pega a sessão do usuário logado
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            alert("Sessão expirada. Faça login novamente.");
+            return;
         }
+        const user_id = session.user.id;
+
+        // 2. BUSCA O PLANO DO USUÁRIO
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        const planoUsuario = user?.user_metadata?.plano || 'free';
+
+        // 3. SE FOR FREE: Verifica se já tem 10 ou mais produtos cadastrados
+        if (planoUsuario === 'free') {
+            const { count, error: countError } = await supabaseClient
+                .from('produtos')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user_id);
+
+            if (countError) throw countError;
+
+            if (count >= 10) {
+                alert("Limite atingido! O Plano Free permite apenas até 10 produtos. Mude para o plano Pro para ter acesso ilimitado.");
+                return;
+            }
+        }
+
+        // 4. Se passou na validação, faz o INSERT do produto no banco
+        const { error } = await supabaseClient.from('produtos').insert([
+            {
+                nome: nome,
+                preco: preco,
+                categoria: categoria,
+                estoque: 0, 
+                user_id: user_id
+            }
+        ]);
+
+        if (error) throw error;
+
+        alert("Produto cadastrado com sucesso!");
+
+        if (inputNome) inputNome.value = "";
+        if (inputPreco) inputPreco.value = "";
+
+        // Atualiza a lista na tela puxando o dado novo do banco
+        await carregarProdutosDoBanco();
+
+    } catch (error) {
+        console.error("Erro ao salvar produto:", error.message);
+        alert("Erro ao salvar produto no banco de dados.");
+    }
+}
+        
 
         function removerProdutoDinamico(index) {
             cardapioProdutos.splice(index, 1);
@@ -1258,19 +1362,81 @@
             let janelaImpressao = window.open('', '', 'width=800,height=900');
             janelaImpressao.document.write(conteudoA4);
             janelaImpressao.document.close();
-        }
+        }           
+           // Função para carregar as categorias do Supabase
+           async function carregarCategoriasDoBanco() {
+         try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) return;
+                const userId = session.user.id;
 
-       indow.onload = () => {
-            carregarPerfil();
-            atualizarRelogioSalao();
-            renderizarCategorias();
-            renderizarProdutosCardapio();
-            atualizarSelectCardapioSalao();
+            // Busca apenas as categorias criadas pelo usuário logado
+                const { data, error } = await supabaseClient
+                    .from('categorias')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('nome', { ascending: true });
+
+        if (error) throw error;
+
+                // Alimenta a variável global que o seu layout usa para renderizar
+                categoriasAtivas = data || [];
+        
+                // Executa as funções visuais que já existem no seu sistema
+                renderizarCategorias();
+                atualizarSelectCardapioSalao();
+
+            } catch (err) {
+                console.error("Erro ao carregar categorias:", err.message);
+            }
+}
+
+// Função para carregar os produtos do Supabase
+async function carregarProdutosDoBanco() {
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const userId = session.user.id;
+
+        // Busca apenas os produtos criados pelo usuário logado
+        const { data, error } = await supabaseClient
+            .from('produtos')
+            .select('*')
+            .eq('user_id', userId)
+            .order('nome', { ascending: true });
+
+        if (error) throw error;
+
+        // Alimenta a variável global que o seu layout usa para listar produtos
+        cardapioProdutos = data || [];
+        
+        // Executa a função visual que já existe no seu sistema
+        renderizarProdutosCardapio();
+
+    } catch (err) {
+        console.error("Erro ao carregar produtos:", err.message);
+    }
+}
+      window.onload = async () => {
+    // 1. Carrega as informações básicas do perfil do usuário
+    carregarPerfil();
+    atualizarRelogioSalao();
+    
+    // 2. BUSCA OS DADOS REAIS DO SUPABASE (Evita que sumam no F5)
+    await carregarCategoriasDoBanco();
+    await carregarProdutosDoBanco();
+    
+    // 3. Atualiza os componentes visuais dependentes
+    atualizarSelectCardapioSalao();
+    
+    // 4. Define a aba inicial padrão do sistema
+    mudarAba('perfil');
+};
     
     // Removemos a linha 'renderizarSalao();' que causava o erro.
     // A função abaixo garante que a aba inicial seja aberta corretamente.
     mudarAba('perfil'); 
-};
+
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="database.js?v=2"></script>
@@ -1307,6 +1473,7 @@
 
     // Executa assim que a tela terminar de carregar
     document.addEventListener('DOMContentLoaded', verificarPlanoDoUsuario);
+
 </script>
 </body>
 </html>
