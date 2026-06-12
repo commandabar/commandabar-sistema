@@ -1,17 +1,33 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CommandaBar - Painel de Controle</title>
+    <title>CommandaBar - Dashboard</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="database.js?v=2"></script>
+
+    <script>
+        // Script Guardião: Roda antes mesmo da página carregar o visual
+        async function checarAcesso() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            
+            // Se não existir uma sessão ativa, manda de volta pro login
+            if (!session) {
+                alert("Acesso negado! Por favor, faça login primeiro.");
+                window.location.href = 'login.html';
+            }
+        }
+        checarAcesso();
+    </script>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CommandaBar - Painel de Controle</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
     <style>
-        /* Estilização dos Toggles de Ativação do Sistema */
         .switch {
             position: relative;
             display: inline-block;
@@ -21,979 +37,1511 @@
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider {
             position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #4b5563; transition: .3s; border-radius: 24px;
+            background-color: #cbd5e1; transition: .3s; border-radius: 24px;
         }
         .slider:before {
-            position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px;
+            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
             background-color: white; transition: .3s; border-radius: 50%;
         }
         input:checked + .slider { background-color: #f97316; }
         input:checked + .slider:before { transform: translateX(20px); }
-
-        /* ========================================================= */
-        /* REGRAS MESTRES DE IMPRESSÃO (OCULTA DASHBOARD EM PAPEL)   */
-        /* ========================================================= */
-        @media print {
-            body { 
-                background: white !important; 
-                color: black !important; 
-                font-family: 'Courier New', Courier, monospace; 
-                margin: 0;
-                padding: 0;
-            }
-            /* Oculta absolutamente toda a interface escura do ERP ao imprimir */
-            header, aside, main, button, select, .no-print, #modal-nova-mesa, #modal-detalhes-mesa { 
-                display: none !important; 
-            }
-            /* Configurações específicas para bobinas térmicas de 80mm */
-            .print-80mm { 
-                width: 80mm; 
-                padding: 4mm; 
-                display: block !important; 
-            }
-            /* Configurações específicas para folhas de relatório administrativo A4 */
-            .print-a4 { 
-                width: 210mm; 
-                padding: 20mm; 
-                display: block !important; 
-            }
+        
+        .dropdown-sino {
+            display: none;
+        }
+        .dropdown-sino.ativo {
+            display: block;
         }
     </style>
-
-    <script>
-        // Script Guardião: Bloqueia imediatamente a renderização da página se não houver token válido
-        async function checarAcesso() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) {
-                alert("Acesso negado! Por favor, efetue o login primeiro.");
-                window.location.href = 'login.html';
-            }
-        }
-        checarAcesso();
-    </script>
 </head>
+<body class="bg-gray-100 font-sans antialiased flex min-h-screen">
 
-<body class="bg-[#111827] font-sans antialiased text-gray-100 min-h-screen flex flex-col m-0 p-0">
-    <!-- CABEÇALHO SUPERIOR PRINCIPAL (TOPBAR) -->
-    <header class="bg-gray-800 border-b border-gray-700 h-16 flex items-center justify-between px-4 fixed top-0 left-0 right-0 z-40">
-        <div class="flex items-center">
-            <!-- Identidade do Sistema -->
-            <div class="flex items-center space-x-2">
-                <div class="bg-[#f97316] p-2 rounded-xl text-white flex items-center justify-center">
-                    <i class="fa-solid fa-fire-burner text-base"></i>
+    <aside class="w-64 bg-[#111827] text-white flex flex-col justify-between p-4 flex-shrink-0 z-20">
+        <div>
+            <div class="flex items-center space-x-2 px-2 py-4 mb-6 border-b border-gray-800">
+                <div class="bg-[#f97316] p-2 rounded-xl">
+                    <i class="fa-solid fa-utensils text-lg text-white"></i>
                 </div>
-                <span class="text-lg font-black text-white tracking-wider uppercase" id="topbar-nome-empresa">COMMANDABAR</span>
+                <span class="text-xl font-black tracking-tight text-orange-500">Commanda<span class="text-white">Bar</span></span>
             </div>
 
-            <!-- MOTOR HORÁRIO: Relógio e Data Operacional do Salão -->
-            <div class="hidden sm:flex flex-col text-left ml-6 border-l border-gray-700 pl-6">
-                <span id="txt-data-tempo-real" class="text-xs text-gray-400 font-medium">Carregando data...</span>
-                <span id="txt-relogio-tempo-real" class="text-sm font-bold text-orange-500">00:00:00</span>
-            </div>
-        </div>
-
-        <!-- Painel de Controle de Sessão e Notificações -->
-        <div class="flex items-center space-x-4">
-            <!-- Central de Alertas Críticos de Estoque -->
-            <div class="relative cursor-pointer" onclick="mudarAba('estoque')">
-                <i class="fa-solid fa-bell text-gray-400 text-lg" id="icone-sino-alerta"></i>
-                <span id="notificacao-contador" class="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-gray-800 hidden">0</span>
-            </div>
-
-            <!-- Dados Compactos do Utilizador -->
-            <div class="flex items-center space-x-3 border-l border-gray-700 pl-4">
-                <div class="text-right hidden md:block">
-                    <p class="text-xs font-bold text-white uppercase tracking-tight" id="topbar-plano-status">Plano Free</p>
-                    <span id="badge-role-painel" class="text-[10px] bg-gray-700 text-gray-300 font-bold px-2 py-0.5 rounded-md">Proprietário</span>
-                </div>
-                <button onclick="executarLogout()" class="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-red-400 p-2.5 rounded-xl transition cursor-pointer">
-                    <i class="fa-solid fa-right-from-bracket text-sm"></i>
+            <nav class="space-y-1">
+                <button onclick="mudarAba('perfil')" id="btn-perfil" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition bg-transparent text-gray-400 hover:bg-gray-800 hover:text-white">
+                    <i class="fa-solid fa-user-tie w-5"></i> <span>Perfil</span>
                 </button>
-            </div>
+                <button onclick="mudarAba('salao')" id="btn-salao" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition bg-transparent text-gray-400 hover:bg-gray-800 hover:text-white">
+                    <i class="fa-solid fa-table-cells-large w-5"></i> <span>Salão</span>
+                </button>
+                <button onclick="mudarAba('categoria')" id="btn-categoria" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition bg-transparent text-gray-400 hover:bg-gray-800 hover:text-white">
+                    <i class="fa-solid fa-tags w-5"></i> <span>Adicionar Categoria</span>
+                </button>
+                <button onclick="mudarAba('produto')" id="btn-produto" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition bg-transparent text-gray-400 hover:bg-gray-800 hover:text-white">
+                    <i class="fa-solid fa-box-open w-5"></i> <span>Adicionar Produto</span>
+                </button>
+                <button onclick="mudarAba('estoque')" id="btn-estoque" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition bg-transparent text-gray-400 hover:bg-gray-800 hover:text-white">
+                    <i class="fa-solid fa-boxes-stacked w-5"></i> <span>Controle de Estoque</span>
+                </button>
+                <button onclick="mudarAba('caixa')" id="btn-caixa" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition bg-transparent text-gray-400 hover:bg-gray-800 hover:text-white">
+                    <i class="fa-solid fa-chart-pie w-5"></i> <span>Relatório de Caixa</span>
+                </button>
+                <button onclick="mudarAba('suporte')" id="btn-suporte" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition bg-transparent text-gray-400 hover:bg-gray-800 hover:text-white">
+                    <i class="fa-solid fa-headset w-5"></i> <span>Suporte</span>
+                </button>
+            </nav>
         </div>
-    </header>
-<!-- CONTAINER CENTRAL: SIDEBAR + CONTEÚDO PRINCIPAL -->
-    <div class="pt-16 flex flex-1 w-full">
-        <!-- BARRA DE NAVEGAÇÃO LATERAL (SIDEBAR) -->
-        <aside class="w-64 bg-gray-800 border-r border-gray-700 p-4 flex flex-col justify-between hidden md:flex fixed top-16 bottom-0 left-0 z-30">
-            <div class="space-y-6">
-                <!-- Identificação do Perfil Interno -->
-                <div class="bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
-                    <p class="text-xs text-gray-400 font-medium">Operador Ativo:</p>
-                    <p class="text-sm font-bold text-white mt-0.5 truncate" id="sidebar-role-detalhe">Administrador Master</p>
-                    <span id="sidebar-plano-badge" class="mt-2 text-[10px] inline-block bg-gray-700 text-gray-400 border border-gray-600 px-2 py-0.5 rounded-full font-medium">Plano Free</span>
-                </div>
 
-                <!-- Lista de Links de Controle -->
-                <nav class="space-y-1">
-                    <button id="btn-aba-salao" onclick="mudarAba('salao')" class="w-full flex items-center space-x-3 px-3 py-3 rounded-xl transition text-sm font-semibold bg-[#f97316] text-white shadow-lg shadow-orange-500/10">
-                        <i class="fa-solid fa-couch text-sm w-5 text-center"></i>
-                        <span>Salão de Mesas</span>
-                    </button>
-
-                    <button id="btn-aba-cardapio" onclick="mudarAba('cardapio')" class="w-full flex items-center space-x-3 px-3 py-3 rounded-xl transition text-sm font-semibold text-gray-400 hover:bg-gray-700/50 hover:text-white">
-                        <i class="fa-solid fa-utensils text-sm w-5 text-center"></i>
-                        <span>Cardápio & Itens</span>
-                    </button>
-
-                    <button id="btn-aba-estoque" onclick="mudarAba('estoque')" class="w-full flex items-center justify-between px-3 py-3 rounded-xl transition text-sm font-semibold text-gray-400 hover:bg-gray-700/50 hover:text-white">
-                        <div class="flex items-center space-x-3">
-                            <i class="fa-solid fa-boxes-stacked text-sm w-5 text-center"></i>
-                            <span>Cockpit de Estoque</span>
-                        </div>
-                    </button>
-
-                    <button id="btn-aba-historico" onclick="mudarAba('historico')" class="w-full flex items-center space-x-3 px-3 py-3 rounded-xl transition text-sm font-semibold text-gray-400 hover:bg-gray-700/50 hover:text-white">
-                        <i class="fa-solid fa-clock-history text-sm w-5 text-center"></i>
-                        <span>Histórico Vendas</span>
-                    </button>
-
-                    <button id="btn-aba-equipe" onclick="mudarAba('equipe')" class="w-full flex items-center justify-between px-3 py-3 rounded-xl transition text-sm font-semibold text-gray-400 hover:bg-gray-700/50 hover:text-white">
-                        <div class="flex items-center space-x-3">
-                            <i class="fa-solid fa-users text-sm w-5 text-center"></i>
-                            <span>Gerenciar Equipe</span>
-                        </div>
-                        <i id="coroa-equipe-lock" class="fa-solid fa-lock text-gray-500 text-xs opacity-60"></i>
-                    </button>
-
-                    <button id="btn-aba-config" onclick="mudarAba('config')" class="w-full flex items-center space-x-3 px-3 py-3 rounded-xl transition text-sm font-semibold text-gray-400 hover:bg-gray-700/50 hover:text-white">
-                        <i class="fa-solid fa-gear text-sm w-5 text-center"></i>
-                        <span>Configurações</span>
-                    </button>
-                </nav>
+        <div class="border-t border-gray-800 pt-4 flex flex-col gap-2">
+            <div class="px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-between bg-gray-800/50 border border-gray-700/50">
+                <span class="text-gray-400">Plano Atual:</span>
+                <span id="txt-status-sidebar" class="text-amber-500 bg-amber-500/10 px-2 py-0.5 border border-amber-500/20 rounded-md">Premium</span>
             </div>
+            
+            <button onclick="sairDoSistema()" class="w-full flex items-center space-x-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl text-sm font-bold transition">
+                <i class="fa-solid fa-right-from-bracket w-5"></i> <span>Sair do Sistema</span>
+            </button>
+        </div>
+    </aside>
 
-            <!-- Rodapé da Barra Lateral -->
-            <div class="text-[10px] text-gray-500 font-medium text-center border-t border-gray-700/50 pt-3">
-                <p>CommandaBar ERP v4.2</p>
-                <p class="mt-0.5">Painel de Alta Performance</p>
-            </div>
-        </aside>
+    <main class="flex-1 p-8 overflow-y-auto max-h-screen relative">
 
-        <!-- CONTAINER DO CONTEÚDO PRINCIPAL -->
-        <main class="flex-1 p-4 md:p-6 md:ml-64 bg-[#111827] min-h-[calc(100vh-4rem)]">
-    
-            <section id="aba-salao" class="space-y-6 block">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <section id="aba-perfil" class="hidden space-y-6">
+            <div class="bg-white p-8 rounded-3xl border shadow-sm max-w-2xl">
+                <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
-                        <h1 class="text-2xl font-black text-white tracking-tight">Salão de Mesas</h1>
-                        <p class="text-sm text-gray-400">Gerencie a ocupação, consumo e pedidos ativos no estabelecimento.</p>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="limparMesasVaziasPainel()" class="bg-gray-700 hover:bg-gray-600 text-gray-200 font-semibold px-4 py-3 rounded-xl transition text-sm cursor-pointer flex items-center space-x-1.5">
-                            <i class="fa-solid fa-broom text-xs"></i>
-                            <span>Limpar Livres</span>
-                        </button>
-                        <button onclick="zerarTurnoSalaoFree()" class="bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/20 font-semibold px-4 py-3 rounded-xl transition text-sm cursor-pointer flex items-center space-x-1.5">
-                            <i class="fa-solid fa-trash-can text-xs"></i>
-                            <span>Zerar Turno</span>
-                        </button>
-                        <button onclick="abrirModalNovaMesa()" class="bg-[#f97316] hover:bg-orange-600 text-white font-bold px-5 py-3 rounded-xl transition shadow-lg shadow-orange-500/10 flex items-center space-x-2 text-sm cursor-pointer">
-                            <i class="fa-solid fa-plus text-xs"></i>
-                            <span>Abrir Nova Mesa</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div class="bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm flex items-center space-x-4">
-                        <div class="bg-green-500/10 p-3 rounded-xl border border-green-500/20">
-                            <i class="fa-solid fa-wallet text-green-500 text-lg"></i>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h2 class="text-2xl font-black text-gray-900 tracking-tight">Perfil do Estabelecimento</h2>
+                            <span id="selo-plano-atual" class="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-black px-2.5 py-1 rounded-xl shadow-sm transition-all duration-300">
+                                <i class="fa-solid fa-crown text-amber-500 animate-pulse"></i> <span id="txt-selo-plano">Plano Premium</span>
+                            </span>
                         </div>
-                        <div>
-                            <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Faturamento Ativo do Salão</p>
-                            <h3 class="text-2xl font-bold text-white mt-0.5" id="card-faturamento-salao-val">R$ 0,00</h3>
-                        </div>
+                        <p class="text-gray-500 text-sm mt-1">Gerencie as informações comerciais da sua conta.</p>
                     </div>
-                </div>
-
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4" id="grid-container-mesas-salao">
-                    </div>
-            </section>
-            <section id="aba-cardapio" class="space-y-6 hidden">
-                <div>
-                    <h1 class="text-2xl font-black text-white tracking-tight">Cardápio & Itens</h1>
-                    <p class="text-sm text-gray-400">Adicione categorias organizacionais e gerencie a oferta de produtos para os garçons.</p>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-1 space-y-6">
+                    
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <button id="btn-virar-pro" onclick="alert('Redirecionando para a área de checkout do Plano Premium (R$ 19,90 por 2 meses, depois R$ 39,90)...')" class="hidden bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold px-4 py-2 rounded-xl transition text-xs flex items-center gap-1.5 shadow-md shadow-orange-500/10">
+                            <i class="fa-solid fa-crown"></i> Fazer Upgrade para Premium
+                        </button>
                         
-                        <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-sm">
-                            <h2 class="text-base font-bold text-white mb-4 flex items-center space-x-2">
-                                <i class="fa-solid fa-folder-plus text-orange-500 text-sm"></i>
-                                <span>Nova Categoria</span>
-                            </h2>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Nome da Categoria</label>
-                                    <input type="text" id="input-nova-categoria-nome" placeholder="Ex: Bebidas, Petiscos, Sobremesas" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 placeholder-gray-600 transition">
-                                </div>
-                                <button onclick="adicionarNovaCategoriaBanco()" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition text-sm flex items-center justify-center space-x-2 cursor-pointer">
-                                    <i class="fa-solid fa-floppy-disk text-xs"></i>
-                                    <span>Salvar Categoria</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-sm">
-                            <h2 class="text-base font-bold text-white mb-4 flex items-center space-x-2">
-                                <i class="fa-solid fa-square-plus text-orange-500 text-sm"></i>
-                                <span>Cadastrar Novo Item</span>
-                            </h2>
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Nome Comercial do Item</label>
-                                    <input type="text" id="input-produto-nome" placeholder="Ex: Cerveja Artesanal IPA 500ml" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 placeholder-gray-600 transition">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Categoria de Associação</label>
-                                    <select id="select-categorias-produto" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 transition">
-                                        </select>
-                                </div>
-
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Preço de Venda (R$)</label>
-                                        <input type="number" step="0.01" id="input-produto-preco" placeholder="14.90" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 placeholder-gray-600 transition">
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Volume em Estoque</label>
-                                        <input type="number" id="input-produto-estoque" placeholder="100" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 placeholder-gray-600 transition">
-                                    </div>
-                                </div>
-
-                                <button onclick="adicionarNovoProdutoBanco()" class="w-full bg-[#f97316] hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-orange-500/10 transition text-sm flex items-center justify-center space-x-2 cursor-pointer">
-                                    <i class="fa-solid fa-plus text-xs"></i>
-                                    <span>Cadastrar no Cardápio</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="lg:col-span-2 space-y-6">
-                        <div class="bg-gray-800 rounded-2xl border border-gray-700 shadow-sm overflow-hidden">
-                            <div class="p-5 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
-                                <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                                    <i class="fa-solid fa-folder text-gray-400 text-xs"></i>
-                                    <span>Categorias em Operação</span>
-                                </h3>
-                            </div>
-                            <div class="overflow-x-auto max-h-48 overflow-y-auto">
-                                <table class="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr class="bg-gray-900/50 border-b border-gray-700 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                            <th class="p-4">Nome da Categoria</th>
-                                            <th class="p-4 text-right">Ação</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="tabela-lista-categorias" class="divide-y divide-gray-700/50 text-sm text-gray-300">
-                                        </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <div class="bg-gray-800 rounded-2xl border border-gray-700 shadow-sm overflow-hidden">
-                            <div class="p-5 border-b border-gray-700 bg-gray-800/50">
-                                <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                                    <i class="fa-solid fa-list text-gray-400 text-xs"></i>
-                                    <span>Produtos do Cardápio</span>
-                                </h3>
-                            </div>
-                            <div class="overflow-x-auto max-h-96 overflow-y-auto">
-                                <table class="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr class="bg-gray-900/50 border-b border-gray-700 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                            <th class="p-4">Item / Produto</th>
-                                            <th class="p-4">Categoria</th>
-                                            <th class="p-4">Preço Unitário</th>
-                                            <th class="p-4 text-right">Ação</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="tabela-lista-produtos" class="divide-y divide-gray-700/50 text-sm text-gray-300">
-                                        </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <button onclick="editarPerfil()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-xl transition text-xs flex items-center gap-1.5">
+                            <i class="fa-solid fa-pen-to-square"></i> Editar Dados
+                        </button>
                     </div>
                 </div>
-            </section>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 border-t pt-6">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Nome Fantasia</label>
+                        <p id="txt-nome-fantasia" class="text-base font-bold text-gray-900">Meu Bar & Restaurante Ltda</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">CNPJ</label>
+                        <p id="txt-cnpj" class="text-base font-bold text-gray-900">12.345.678/0001-99</p>
+                    </div>
+                </div>
 
-            <section id="aba-estoque" class="space-y-6 hidden">
+            
+                </div>
+            </div>
+        </section>
+
+        <section id="aba-salao" class="hidden space-y-6">
+            <div class="flex items-center justify-between relative">
                 <div>
-                    <h1 class="text-2xl font-black text-white tracking-tight">Cockpit de Estoque</h1>
-                    <p class="text-sm text-gray-400">Controle de insumos, volumetria de armazenamento e ajustes rápidos.</p>
+                    <h2 class="text-2xl font-black text-gray-900 tracking-tight">Painel do Salão</h2>
+                    <p id="txt-relogio-salao" class="text-sm font-bold text-orange-500 mt-0.5">Carregando data e hora...</p>
                 </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <button onclick="toggleDropdownSino()" class="relative p-2 text-gray-400 hover:text-orange-500 bg-white border rounded-xl shadow-sm transition focus:outline-none">
+                            <i class="fa-solid fa-bell text-xl"></i>
+                            <span id="sino-contador" class="hidden absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">0</span>
+                        </button>
 
-                <div id="lock-estoque-free" class="bg-gray-800 border border-dashed border-gray-700 rounded-2xl p-8 text-center max-w-md mx-auto space-y-4 my-6 hidden">
-                    <div class="bg-amber-500/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto border border-amber-500/20">
-                        <i class="fa-solid fa-lock text-amber-500 text-base"></i>
+                        <div id="sino-dropdown" class="dropdown-sino absolute right-0 mt-2 w-72 bg-white rounded-2xl border shadow-xl z-50 p-4 space-y-3">
+                            <h4 class="text-xs font-black text-gray-400 uppercase tracking-wider border-b pb-2">Alertas de Estoque (&le; 10 un)</h4>
+                            <div id="sino-lista-alertas" class="max-h-48 overflow-y-auto divide-y text-xs space-y-1"></div>
+                        </div>
                     </div>
-                    <h3 class="text-base font-bold text-white">Controle de Estoque é Premium</h3>
-                    <p class="text-sm text-gray-400">O plano básico não possui o recurso de controle de estoque. Faça o upgrade para o plano Premium Pro para monitorar níveis de insumos e receber alertas de reposição.</p>
-                    <button onclick="mudarAba('config')" class="bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold px-4 py-2 rounded-xl text-sm transition cursor-pointer">
-                        Ver Planos de Upgrade
+
+                    <button onclick="limparMesasVazias()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold px-4 py-2.5 rounded-xl transition text-sm flex items-center gap-2 border border-gray-300">
+                        <i class="fa-solid fa-broom"></i> Limpar Vazias
+                    </button>
+
+                    <button id="btn-zerar-turno-free" onclick="zerarTurnoCompleto()" class="hidden bg-red-100 hover:bg-red-200 text-red-600 font-bold px-4 py-2.5 rounded-xl transition text-sm flex items-center gap-2 border border-red-200">
+                        <i class="fa-solid fa-rotate"></i> Zerar Turno
+                    </button>
+
+                    <button onclick="abrirNovaMesaDinamica()" class="bg-[#f97316] hover:bg-orange-600 text-white font-bold px-5 py-2.5 rounded-xl transition text-sm flex items-center gap-2 shadow-md shadow-orange-500/10">
+                        <i class="fa-solid fa-plus"></i> Abrir Nova Mesa
                     </button>
                 </div>
+            </div>
 
-                <div id="tabela-estoque-container" class="bg-gray-800 rounded-2xl border border-gray-700 shadow-sm overflow-hidden">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-gray-900/50 border-b border-gray-700 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                <th class="p-4">Item / Produto</th>
-                                <th class="p-4">Categoria</th>
-                                <th class="p-4 text-center">Ajuste Rápido</th>
-                                <th class="p-4 text-right">Quantidade</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabela-lista-estoque" class="divide-y divide-gray-700/50 text-sm text-gray-300">
-                            </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="aba-historico" class="space-y-6 hidden">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div class="bg-white p-5 rounded-2xl border shadow-sm flex items-center justify-between">
                     <div>
-                        <h1 class="text-2xl font-black text-white tracking-tight">Histórico de Vendas</h1>
-                        <p class="text-sm text-gray-400">Consulte o fechamento de caixa e o faturamento consolidado das comandas finalizadas.</p>
+                        <span class="text-xs font-bold text-gray-400 uppercase">Mesas Ativas / Ocupadas</span>
+                        <h3 id="txt-qtd-mesas-abertas" class="text-2xl font-black text-gray-900 mt-1">0 mesas</h3>
                     </div>
-                    <div class="flex gap-2">
-                        <button onclick="zerarTurnoHistorico()" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 font-semibold px-4 py-2.5 rounded-xl text-sm transition cursor-pointer flex items-center">
-                            <i class="fa-solid fa-arrow-rotate-left mr-1.5"></i> Zerar Turno do Caixa
-                        </button>
-                        <button onclick="imprimirRelatorioCaixaA4()" class="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition cursor-pointer flex items-center">
-                            <i class="fa-solid fa-print mr-1.5"></i> Imprimir Relatório A4
-                        </button>
+                    <i class="fa-solid fa-door-open text-xl text-gray-300"></i>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border shadow-sm flex items-center justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-gray-400 uppercase">Total Faturado (Geral do Turno)</span>
+                        <h3 id="faturamento-total-unificado" class="text-2xl font-black text-orange-600 mt-1">R$ 0,00</h3>
                     </div>
+                    <i class="fa-solid fa-wallet text-xl text-orange-200"></i>
+                </div>
+            </div>
+
+            <div id="grid-mesas" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 mt-6"></div>
+
+            <div id="painel-gerenciamento-mesa" class="hidden bg-white p-6 rounded-3xl border shadow-md mt-8 max-w-4xl transition-all">
+                <div class="flex items-center justify-between border-b pb-4 mb-4">
+                    <div>
+                        <h3 id="gerencia-titulo-mesa" class="text-xl font-black text-gray-900">Gerenciando Mesa</h3>
+                        <p id="gerencia-hora-mesa" class="text-xs text-gray-400 mt-0.5">Abertura: -</p>
+                    </div>
+                    <button onclick="fecharPainelMesa()" class="text-gray-400 hover:text-gray-600 text-sm font-bold">Fechar Panel ✕</button>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div class="bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm flex items-center space-x-4">
-                        <div class="bg-green-500/10 p-3 rounded-xl border border-green-500/20">
-                            <i class="fa-solid fa-chart-line text-green-500 text-lg"></i>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 p-4 rounded-2xl border space-y-3">
+                            <span class="text-xs font-bold text-gray-700 block uppercase">Lançar Novo Item</span>
+                            <div class="w-full">
+                                <input type="text" id="add-item-selecao" list="lista-produtos-salao" placeholder="Digite o nome do produto..." class="w-full px-3 py-2.5 border rounded-xl text-xs bg-white focus:outline-none focus:border-orange-500">
+                                <datalist id="lista-produtos-salao"></datalist>
+                            </div>
+                            <button onclick="adicionarItemMesa()" class="w-full bg-[#f97316] hover:bg-orange-600 text-white text-xs font-bold py-2.5 rounded-xl transition">
+                                Lançar Item no Salão
+                            </button>
                         </div>
+
                         <div>
-                            <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Faturamento Consolidado</p>
-                            <h3 class="text-2xl font-bold text-white mt-0.5" id="card-faturamento-historico-val">R$ 0,00</h3>
+                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Itens Consumidos</h4>
+                            <div id="gerencia-lista-itens" class="border rounded-2xl max-h-60 overflow-y-auto divide-y text-sm bg-gray-50"></div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-5 border-l md:pl-8 flex flex-col justify-between">
+                        <div>
+                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Encerramento da Conta</h4>
+                            
+                            <div class="space-y-2 text-sm border-b pb-4 mb-4">
+                                <div class="flex justify-between text-gray-600"><span>Consumo Parcial:</span><span id="gerencia-txt-parcial" class="font-bold text-gray-800">R$ 0,00</span></div>
+                                <div class="flex items-center justify-between text-gray-600 py-1">
+                                    <span>Taxa de Serviço Opcional (10%):</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="switch-taxa-mesa" onchange="recalcularValoresFechamentoMesa()">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="flex justify-between text-lg font-black text-gray-900 pt-2 border-t border-dashed"><span>Total da Conta:</span><span id="gerencia-txt-total">R$ 0,00</span></div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Forma de Pagamento</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button type="button" id="btn-pay-credito" onclick="selecionarMetodoPagamento('credito')" class="py-2 px-3 text-xs font-bold border rounded-xl transition bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100">Crédito</button>
+                                    <button type="button" id="btn-pay-debito" onclick="selecionarMetodoPagamento('debito')" class="py-2 px-3 text-xs font-bold border rounded-xl transition bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100">Débito</button>
+                                    <button type="button" id="btn-pay-pix" onclick="selecionarMetodoPagamento('pix')" class="py-2 px-3 text-xs font-bold border rounded-xl transition bg-orange-500 text-white border-orange-500 shadow-sm">Pix</button>
+                                    <button type="button" id="btn-pay-avista" onclick="selecionarMetodoPagamento('avista')" class="py-2 px-3 text-xs font-bold border rounded-xl transition bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100">À Vista</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 pt-4">
+                            <button onclick="imprimirCupom80mm()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-xs transition flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-print"></i> Cupom 80mm
+                            </button>
+                            <button onclick="confirmarFechamentoPagamento()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl text-xs transition">
+                                Confirmar Pagamento
+                            </button>
                         </div>
                     </div>
                 </div>
+            </div>
+        </section>
 
-                <div class="bg-gray-800 rounded-2xl border border-gray-700 shadow-sm overflow-hidden">
-                    <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+        <section id="aba-categoria" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+                <div class="bg-white p-8 rounded-3xl border shadow-sm md:col-span-1">
+                    <h2 class="text-2xl font-black text-gray-900 tracking-tight">Nova Categoria</h2>
+                    <p id="aviso-limite-categoria" class="text-xs font-semibold text-orange-500 mt-1 hidden">Limite do plano atingido (Máx 5)</p>
+                    <form id="form-cadastro-categoria" onsubmit="event.preventDefault(); criarNovaCategoriaDinamica();" class="mt-6 space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Nome da Categoria</label>
+                            <input type="text" id="input-nome-categoria" placeholder="Ex: Bebidas, Porções" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-500" required>
+                        </div>
+                        <button type="submit" id="btn-submit-categoria" class="w-full bg-[#f97316] hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl transition text-sm">+ Criar Categoria</button>
+                    </form>
+                </div>
+                <div class="bg-white p-8 rounded-3xl border shadow-sm md:col-span-2 space-y-4">
+                    <h3 class="text-lg font-black text-gray-900">Categorias Ativas <span id="qtd-contador-categoria" class="text-sm font-normal text-gray-400"></span></h3>
+                    <div class="overflow-hidden border border-gray-100 rounded-2xl">
                         <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-gray-900/50 border-b border-gray-700 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                    <th class="p-4">Mesa / Código</th>
-                                    <th class="p-4">Data Fechamento</th>
-                                    <th class="p-4">Produtos Consumidos (Qtd)</th>
-                                    <th class="p-4">Pagamento</th>
-                                    <th class="p-4 text-right">Total</th>
+                                <tr class="bg-gray-50 border-b text-xs font-bold text-gray-400 uppercase p-4">
+                                    <th class="p-4">Nome</th>
+                                    <th class="p-4 text-right">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody id="tabela-lista-historico" class="divide-y divide-gray-700/50 text-sm text-gray-300">
-                                </tbody>
+                            <tbody id="tabela-lista-categorias" class="text-sm divide-y"></tbody>
                         </table>
                     </div>
                 </div>
-            </section>
-            <section id="aba-equipe" class="space-y-6 hidden">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h1 class="text-2xl font-black text-white tracking-tight flex items-center space-x-2">
-                            <span>Gerenciar Equipe</span>
-                            <span class="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">Premium</span>
-                        </h1>
-                        <p class="text-sm text-gray-400">Cadastre e gerencie os 5 acessos individuais para os seus funcionários e garçons.</p>
-                    </div>
-                </div>
-
-                <div id="tela-bloqueio-equipe-free" class="hidden bg-gray-800 border border-dashed border-gray-700 rounded-2xl p-8 text-center max-w-md mx-auto space-y-4 my-12">
-                    <div class="bg-amber-500/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto border border-amber-500/20">
-                        <i class="fa-solid fa-crown text-amber-500 text-lg"></i>
-                    </div>
-                    <h3 class="text-base font-bold text-white">Recurso Exclusivo Plano Premium</h3>
-                    <p class="text-sm text-gray-400">A sua conta atual está no plano básico. Faça upgrade para o plano Premium Pro para liberar até 5 acessos simultâneos para a sua equipe de garçons e operadores.</p>
-                    <button onclick="mudarAba('config')" class="bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold px-4 py-2 rounded-xl text-sm transition cursor-pointer">Fazer Upgrade da Conta</button>
-                </div>
-
-                <div id="conteudo-painel-equipe-premium" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-1 bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-sm h-fit">
-                        <h2 class="text-base font-bold text-white mb-4 flex items-center space-x-2">
-                            <i class="fa-solid fa-user-plus text-orange-500 text-sm"></i>
-                            <span>Adicionar Membro</span>
-                        </h2>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">E-mail do Funcionário</label>
-                                <input type="email" id="input-equipe-email" placeholder="garcom1@seu-bar.com" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 placeholder-gray-600 transition">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Senha Provisória</label>
-                                <input type="password" id="input-equipe-senha" placeholder="Mínimo 6 caracteres" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 placeholder-gray-600 transition">
-                            </div>
-                            <button onclick="dispararCadastroMembroEquipe()" class="w-full bg-[#f97316] hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-orange-500/10 transition text-sm flex items-center justify-center space-x-2 cursor-pointer">
-                                <i class="fa-solid fa-paper-plane text-xs"></i>
-                                <span>Criar Conta de Acesso</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="lg:col-span-2 bg-gray-800 rounded-2xl border border-gray-700 shadow-sm overflow-hidden">
-                        <div class="p-5 border-b border-gray-700 bg-gray-800/50">
-                            <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                                <i class="fa-solid fa-users text-gray-400 text-xs"></i>
-                                <span>Contas de Acesso Ativas (<span id="contador-membros-equipe">0</span>/5)</span>
-                            </h3>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="bg-gray-900/50 border-b border-gray-700 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                        <th class="p-4">Utilizador / E-mail</th>
-                                        <th class="p-4">Nível de Permissão</th>
-                                        <th class="p-4 text-right">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tabela-lista-equipe-vinculada" class="divide-y divide-gray-700/50 text-sm text-gray-300">
-                                    </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section id="aba-config" class="space-y-6 hidden">
-                <div>
-                    <h1 class="text-2xl font-black text-white tracking-tight">Configurações do Sistema</h1>
-                    <p class="text-sm text-gray-400">Gerencie as informações do seu estabelecimento comercial e controle sua assinatura.</p>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-sm space-y-4">
-                        <h2 class="text-base font-bold text-white flex items-center space-x-2">
-                            <i class="fa-solid fa-store text-orange-500 text-sm"></i>
-                            <span>Perfil do Estabelecimento</span>
-                        </h2>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Nome do Bar / Restaurante</label>
-                                <input type="text" id="input-config-nome-loja" placeholder="Meu Bar Fantasia" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 transition">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">CNPJ / CPF do Estabelecimento</label>
-                                <input type="text" id="input-config-cnpj-loja" placeholder="00.000.000/0001-00" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 transition">
-                            </div>
-                            <button onclick="salvarConfiguracoesPerfil()" class="bg-[#f97316] hover:bg-orange-600 text-white font-bold py-2.5 px-5 rounded-xl transition text-sm flex items-center space-x-2 cursor-pointer">
-                                <i class="fa-solid fa-floppy-disk text-xs"></i>
-                                <span>Salvar Alterações</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-sm flex flex-col justify-between">
-                        <div class="space-y-4">
-                            <h2 class="text-base font-bold text-white flex items-center space-x-2">
-                                <i class="fa-solid fa-credit-card text-orange-500 text-sm"></i>
-                                <span>Status da Assinatura</span>
-                            </h2>
-                            <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700 flex items-center justify-between">
-                                <div>
-                                    <p class="text-xs text-gray-400">Seu plano atual:</p>
-                                    <p class="text-base font-bold text-white mt-0.5" id="config-txt-plano-nome">Plano Básico (Free)</p>
-                                </div>
-                                <span class="bg-green-500/10 text-green-400 border border-green-500/20 text-xs font-bold px-2.5 py-1 rounded-full uppercase" id="config-badge-plano-status">Ativo</span>
-                            </div>
-                            <p class="text-sm text-gray-400">O plano Premium Pro libera recursos como o controle de estoque em tempo real e a criação de até 5 subcontas para sua equipe trabalhar em conjunto.</p>
-                        </div>
-                        <div class="pt-4 border-t border-gray-700/50 mt-4 flex items-center justify-between">
-                            <span class="text-xs text-gray-500">Upgrade de plano para testes internos.</span>
-                            <button id="btn-config-action-upgrade" onclick="mudarPlanoSimulado()" class="bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold py-2.5 px-4 rounded-xl transition text-sm cursor-pointer">Alternar Plano (Teste)</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            </main>
-    </div>
-
-    <div id="modal-nova-mesa" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-gray-800 border border-gray-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all">
-            <div class="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
-                <h3 class="text-base font-bold text-white flex items-center space-x-2">
-                    <i class="fa-solid fa-square-plus text-orange-500 text-sm"></i>
-                    <span>Abrir Nova Mesa / Comanda</span>
-                </h3>
-                <button onclick="fecharModalNovaMesa()" class="text-gray-400 hover:text-white transition cursor-pointer">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
             </div>
-            <div class="p-6 space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Identificação (Número ou Nome)</label>
-                    <input type="text" id="input-nova-mesa-id" placeholder="Ex: Mesa 12, Balcão João, VIP 01" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 placeholder-gray-600 transition">
-                </div>
-                <button onclick="confirmarAberturaMesaDinamica()" class="w-full bg-[#f97316] hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-orange-500/10 transition text-sm flex items-center justify-center space-x-2 cursor-pointer">
-                    <i class="fa-solid fa-check text-xs"></i>
-                    <span>Ativar Comanda no Salão</span>
-                </button>
-            </div>
-        </div>
-    </div>
+        </section>
 
-    <div id="modal-detalhes-mesa" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-gray-800 border border-gray-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
-            <div class="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
-                <div>
-                    <h3 class="text-lg font-black text-white tracking-tight" id="modal-mesa-titulo-nome">Mesa X</h3>
-                    <p class="text-xs text-gray-400 mt-0.5">Gerenciamento de consumo e adição de novos produtos.</p>
+        <section id="aba-produto" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+                <div class="bg-white p-8 rounded-3xl border shadow-sm md:col-span-1">
+                    <h2 class="text-2xl font-black text-gray-900 tracking-tight">Novo Produto</h2>
+                    <p id="aviso-limite-produto" class="text-xs font-semibold text-orange-500 mt-1 hidden">Limite do plano atingido (Máx 10)</p>
+                    <form id="form-cadastro-produto" onsubmit="event.preventDefault(); cadastrarNovoProdutoDinamico();" class="mt-6 space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Nome do Item</label>
+                            <input type="text" id="input-nome-produto" placeholder="Ex: Coca Cola" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-500" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Preço de Venda (R$)</label>
+                            <input type="number" id="input-preco-produto" step="0.01" placeholder="0,00" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-500" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Vincular Categoria</label>
+                            <select id="select-categorias-produto" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-500" required></select>
+                        </div>
+                        <button type="submit" id="btn-submit-produto" class="w-full bg-[#f97316] hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl transition text-sm">+ Cadastrar Produto</button>
+                    </form>
                 </div>
-                <button onclick="fecharModalDetalhesMesa()" class="text-gray-400 hover:text-white transition cursor-pointer">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
+                <div class="bg-white p-8 rounded-3xl border shadow-sm md:col-span-2 space-y-4">
+                    <h3 class="text-lg font-black text-gray-900">Produtos no Cardápio <span id="qtd-contador-produto" class="text-sm font-normal text-gray-400"></span></h3>
+                    <div class="overflow-hidden border border-gray-100 rounded-2xl">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 border-b text-xs font-bold text-gray-400 uppercase p-4">
+                                    <th class="p-4">Item</th>
+                                    <th class="p-4">Categoria</th>
+                                    <th class="p-4">Preço</th>
+                                    <th class="p-4 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-lista-produtos" class="text-sm divide-y"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="aba-estoque" class="hidden space-y-6">
+            <div id="tela-bloqueio-estoque-free" class="hidden bg-gradient-to-br from-gray-900 to-slate-900 text-white p-12 rounded-3xl text-center shadow-xl max-w-2xl border border-gray-800 mx-auto">
+                <div class="w-14 h-14 bg-amber-500/10 text-amber-400 rounded-2xl flex items-center justify-center text-xl mx-auto mb-4 border border-amber-500/20">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h3 class="text-xl font-black tracking-tight">Módulo de Estoque Restrito</h3>
+                <p class="text-gray-400 text-sm mt-2 max-w-md mx-auto leading-relaxed">
+                    O gerenciamento de insumos e alertas de reposição inteligente em tempo real estão disponíveis apenas no Plano Premium.
+                </p>
+                <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button onclick="mudarAba('perfil')" class="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black px-6 py-3 rounded-xl text-xs shadow-md">
+                        <i class="fa-solid fa-crown"></i> Assinar Plano Premium
+                    </button>
+                </div>
             </div>
 
-            <div class="p-6 space-y-6 overflow-y-auto flex-1">
-                <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700/60 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                    <div class="sm:col-span-2">
-                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Escolha o Item do Cardápio</label>
-                        <select id="modal-select-lancar-produto" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500 transition">
-                            </select>
-                    </div>
-                    <div>
-                        <button onclick="lancarItemMesaSelecionada()" class="w-full bg-[#f97316] hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-orange-500/10 transition text-sm flex items-center justify-center space-x-2 cursor-pointer">
-                            <i class="fa-solid fa-plus text-xs"></i>
-                            <span>Lançar Item</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="space-y-2">
-                    <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Produtos Consumidos / Comanda</h4>
-                    <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
-                        <div class="max-h-48 overflow-y-auto">
-                            <table class="w-full text-left border-collapse text-sm">
-                                <thead>
-                                    <tr class="bg-gray-800 border-b border-gray-700 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                        <th class="p-3">Item / Qtd</th>
-                                        <th class="p-3">Preço Unitário</th>
-                                        <th class="p-3 text-right">Ação</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="modal-mesa-tabela-consumo" class="divide-y divide-gray-700/40 text-gray-300">
-                                    </tbody>
-                            </table>
-                        </div>
-                        <div class="bg-gray-800/80 p-4 border-t border-gray-700 flex justify-between items-center">
-                            <span class="text-sm font-medium text-gray-400">Total Acumulado:</span>
-                            <span class="text-xl font-black text-green-400" id="modal-mesa-total-consumo-val">R$ 0,00</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="pt-4 border-t border-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center bg-gray-800/30 p-4 rounded-xl border border-dashed border-gray-700">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Forma de Pagamento</label>
-                        <select id="modal-select-forma-pagamento" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500 transition">
-                            <option value="Dinheiro">Dinheiro</option>
-                            <option value="Cartão de Crédito">Cartão de Crédito</option>
-                            <option value="Cartão de Débito">Cartão de Débito</option>
-                            <option value="PIX">PIX</option>
-                        </select>
-                    </div>
-                    <button onclick="fecharEFecharContaMesaDinamica()" class="w-full bg-green-600 hover:bg-green-700 text-white
-
-                    
-                    <script>
-        // Memória em cache e estado operacional local
-        let dadosSessaoMesasAtivas = [];
-        let cardapioCategorias = [];
-        let cardapioProdutos = [];
-        let indexMesaSelecionadaGlobal = null;
-
-        // Recupera o ID do Proprietário (Garante independência para os 5 acessos)
-        function obterIdDonoDoNegocio() {
-            return localStorage.getItem('owner_id') || localStorage.getItem('user_id');
-        }
-
-        // ==========================================
-        // 1. DATA E HORÁRIO OPERACIONAL EM TEMPO REAL
-        // ==========================================
-        function iniciarRelogioDoPainel() {
-            setInterval(() => {
-                const agora = new Date();
-                const opcoesData = { weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' };
-                
-                const txtData = document.getElementById('txt-data-tempo-real');
-                const txtRelogio = document.getElementById('txt-relogio-tempo-real');
-                
-                if (txtData) txtData.innerText = agora.toLocaleDateString('pt-BR', opcoesData);
-                if (txtRelogio) txtRelogio.innerText = agora.toLocaleTimeString('pt-BR');
-            }, 1000);
-        }
-
-        // ==========================================
-        // 2. SISTEMA DE ALTERNÂNCIA DE ABAS DO ERP
-        // ==========================================
-        function mudarAba(nomeAba) {
-            const abasDisponiveis = ['salao', 'cardapio', 'estoque', 'historico', 'equipe', 'config'];
-            
-            abasDisponiveis.forEach(aba => {
-                const elemento = document.getElementById(`aba-${aba}`);
-                const botao = document.getElementById(`btn-aba-${aba}`);
-                if (elemento) elemento.classList.add('hidden');
-                if (botao) {
-                    botao.className = "w-full flex items-center space-x-3 px-3 py-3 rounded-xl transition text-sm font-semibold text-gray-400 hover:bg-gray-700/50 hover:text-white";
-                }
-            });
-
-            const abaAlvo = document.getElementById(`aba-${nomeAba}`);
-            const botaoAlvo = document.getElementById(`btn-aba-${nomeAba}`);
-            
-            if (abaAlvo) abaAlvo.classList.remove('hidden');
-            if (botaoAlvo) {
-                botaoAlvo.className = "w-full flex items-center space-x-3 px-3 py-3 rounded-xl transition text-sm font-semibold bg-[#f97316] text-white shadow-lg shadow-orange-500/10";
-            }
-
-            // Carregamento inteligente direcionado
-            if (nomeAba === 'cardapio') {
-                carregarCategoriasDoBanco();
-                carregarProdutosDoBanco();
-            } else if (nomeAba === 'estoque') {
-                carregarProdutosDoBanco();
-            } else if (nomeAba === 'equipe') {
-                carregarMembrosEquipeVinculados();
-            } else if (nomeAba === 'config') {
-                carregarDadosConfiguracaoPerfil();
-            }
-        }
-
-        // ==========================================
-        // 3. SINCRONIZADOR DE TRAVAS DE PLANO (FREE VS PRO)
-        // ==========================================
-        function sincronizarEstruturasPorPlano(plano, role) {
-            const badgeRole = document.getElementById('badge-role-painel');
-            const txtRoleDetalhe = document.getElementById('sidebar-role-detalhe');
-            const badgePlano = document.getElementById('sidebar-plano-badge');
-            
-            if(badgeRole) badgeRole.innerText = role === 'funcionario' ? 'Colaborador' : 'Proprietário';
-            if(txtRoleDetalhe) txtRoleDetalhe.innerText = role === 'funcionario' ? 'Equipe Vinculada' : 'Administrador Master';
-
-            if (plano === 'free' || plano === 'free_trial') {
-                if(badgePlano) badgePlano.className = "mt-2 text-[10px] inline-block bg-gray-700 text-gray-400 border border-gray-600 px-2 py-0.5 rounded-full font-medium";
-                
-                // Ativa bloqueios Free
-                document.getElementById('tela-bloqueio-equipe-free')?.classList.remove('hidden');
-                document.getElementById('conteudo-painel-equipe-premium')?.classList.add('hidden');
-                document.getElementById('lock-estoque-free')?.classList.remove('hidden');
-                document.getElementById('tabela-estoque-container')?.classList.add('hidden');
-                
-                const coroa = document.getElementById('coroa-equipe-lock');
-                if(coroa) coroa.className = "fa-solid fa-lock text-gray-500 text-xs opacity-60";
-            } else {
-                if(badgePlano) badgePlano.className = "mt-2 text-[10px] inline-block bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-0.5 rounded-full font-medium";
-                
-                // Libera recursos Pro
-                document.getElementById('tela-bloqueio-equipe-free')?.classList.add('hidden');
-                document.getElementById('conteudo-painel-equipe-premium')?.classList.remove('hidden');
-                document.getElementById('lock-estoque-free')?.classList.add('hidden');
-                document.getElementById('tabela-estoque-container')?.classList.remove('hidden');
-                
-                const coroa = document.getElementById('coroa-equipe-lock');
-                if(coroa) coroa.className = "fa-solid fa-crown text-amber-400 text-xs opacity-80";
-            }
-        }
-
-        // ==========================================
-        // 4. CORREÇÃO DAS FUNÇÕES DO CARDÁPIO (SUPABASE)
-        // ==========================================
-        async function carregarCategoriasDoBanco() {
-            try {
-                const idDoNegocio = obterIdDonoDoNegocio();
-                const { data, error } = await supabaseClient.from('categorias').select('*').eq('user_id', idDoNegocio);
-                if (error) throw error;
-
-                cardapioCategorias = data || [];
-                const select = document.getElementById('select-categorias-produto');
-                const tbody = document.getElementById('tabela-lista-categorias');
-                
-                if(select) select.innerHTML = '<option value="">Selecione uma Categoria</option>';
-                if(tbody) tbody.innerHTML = '';
-
-                cardapioCategorias.forEach(c => {
-                    if(select) select.innerHTML += `<option value="${c.nome}">${c.nome}</option>`;
-                    if(tbody) tbody.innerHTML += `
-                        <tr class="border-b border-gray-700/40 hover:bg-gray-700/10">
-                            <td class="p-4 font-medium text-white">${c.nome}</td>
-                            <td class="p-4 text-right">
-                                <button onclick="removerCategoriaDoBanco('${c.id}')" class="text-gray-500 hover:text-red-400 transition cursor-pointer"><i class="fa-solid fa-trash-can"></i></button>
-                            </td>
-                        </tr>`;
-                });
-            } catch(err) { console.error(err.message); }
-        }
-
-        async function adicionarNovaCategoriaBanco() {
-            const nome = document.getElementById('input-nova-categoria-nome').value.trim();
-            if(!nome) { alert("Digite o nome da categoria!"); return; }
-
-            try {
-                const idDoNegocio = obterIdDonoDoNegocio();
-                const { error } = await supabaseClient.from('categorias').insert([{ nome: nome, user_id: idDoNegocio }]);
-                if (error) throw error;
-
-                alert("Categoria salva com sucesso!");
-                document.getElementById('input-nova-categoria-nome').value = "";
-                await carregarCategoriasDoBanco();
-            } catch(err) { alert("Erro ao salvar: " + err.message); }
-        }
-
-        async function carregarProdutosDoBanco() {
-            try {
-                const idDoNegocio = obterIdDonoDoNegocio();
-                const { data, error } = await supabaseClient.from('produtos').select('*').eq('user_id', idDoNegocio);
-                if (error) throw error;
-
-                cardapioProdutos = data || [];
-                renderizarTabelasCardapioEEstoque();
-                atualizarAlertasSino();
-            } catch(err) { console.error(err.message); }
-        }
-
-        async function adicionarNovoProdutoBanco() {
-            const nome = document.getElementById('input-produto-nome').value.trim();
-            const categoria = document.getElementById('select-categorias-produto').value;
-            const preco = parseFloat(document.getElementById('input-produto-preco').value || 0);
-            const estoque = parseInt(document.getElementById('input-produto-estoque').value || 0);
-
-            if(!nome || !categoria) { alert("Preencha o nome e selecione a categoria!"); return; }
-
-            try {
-                const idDoNegocio = obterIdDonoDoNegocio();
-                const { error } = await supabaseClient.from('produtos').insert([{
-                    nome: nome, categoria: categoria, preco: preco, estoque: estoque, user_id: idDoNegocio
-                }]);
-                if (error) throw error;
-
-                alert("Produto adicionado ao cardápio!");
-                document.getElementById('input-produto-nome').value = "";
-                document.getElementById('input-produto-preco').value = "";
-                document.getElementById('input-produto-estoque').value = "";
-                await carregarProdutosDoBanco();
-            } catch(err) { alert("Erro ao salvar produto: " + err.message); }
-        }
-
-        function renderizarTabelasCardapioEEstoque() {
-            const tbodyProd = document.getElementById('tabela-lista-produtos');
-            const tbodyEstoque = document.getElementById('tabela-lista-estoque');
-            const selectModal = document.getElementById('modal-select-lancar-produto');
-
-            if(tbodyProd) tbodyProd.innerHTML = '';
-            if(tbodyEstoque) tbodyEstoque.innerHTML = '';
-            if(selectModal) selectModal.innerHTML = '';
-
-            cardapioProdutos.forEach(p => {
-                if(tbodyProd) {
-                    tbodyProd.innerHTML += `
-                        <tr class="border-b border-gray-700/40 hover:bg-gray-700/10">
-                            <td class="p-4 font-bold text-white">${p.nome}</td>
-                            <td class="p-4 text-gray-400">${p.categoria}</td>
-                            <td class="p-4 text-green-400 font-semibold">R$ ${parseFloat(p.preco).toFixed(2)}</td>
-                            <td class="p-4 text-right">
-                                <button onclick="removerProdutoDoBanco('${p.id}')" class="text-gray-500 hover:text-red-400 transition cursor-pointer"><i class="fa-solid fa-trash-can"></i></button>
-                            </td>
-                        </tr>`;
-                }
-                if(tbodyEstoque) {
-                    const statusCor = p.estoque <= 5 ? 'text-red-400 font-bold' : 'text-gray-300';
-                    tbodyEstoque.innerHTML += `
-                        <tr class="border-b border-gray-700/40 hover:bg-gray-700/10">
-                            <td class="p-4 font-semibold text-white">${p.nome}</td>
-                            <td class="p-4 text-gray-400">${p.categoria}</td>
-                            <td class="p-4 text-center">
-                                <div class="flex items-center justify-center space-x-1">
-                                    <button onclick="ajustarEstoqueRapido('${p.id}', -1)" class="bg-gray-700 text-white px-2 py-1 rounded">-</button>
-                                    <button onclick="ajustarEstoqueRapido('${p.id}', 1)" class="bg-gray-700 text-white px-2 py-1 rounded">+</button>
-                                </div>
-                            </td>
-                            <td class="p-4 text-right ${statusCor}">${p.estoque} un</td>
-                        </tr>`;
-                }
-                if(selectModal) {
-                    selectModal.innerHTML += `<option value="${p.id}">${p.nome} - R$ ${parseFloat(p.preco).toFixed(2)}</option>`;
-                }
-            });
-        }
-
-        // ==========================================
-        // 5. CONTROLE OPERACIONAL DE TURNOS E LIMPEZAS
-        // ==========================================
-        function limparMesasVaziasPainel() {
-            dadosSessaoMesasAtivas = dadosSessaoMesasAtivas.filter(m => m.status === 'ocupada' || m.total > 0);
-            renderizarMesasPainelSalao();
-        }
-
-        function zerarTurnoSalaoFree() {
-            if(!confirm("Deseja zerar todas as mesas do turno atual? Isso limpará o salão ativo.")) return;
-            dadosSessaoMesasAtivas = [];
-            renderizarMesasPainelSalao();
-            document.getElementById('card-faturamento-salao-val').innerText = "R$ 0,00";
-        }
-
-        function zerarTurnoHistorico() {
-            if(!confirm("Atenção! Deseja limpar a listagem visível do histórico de vendas?")) return;
-            document.getElementById('tabela-lista-historico').innerHTML = '';
-            document.getElementById('card-faturamento-historico-val').innerText = "R$ 0,00";
-        }
-
-        // ==========================================
-        // 6. MOTORES DE IMPRESSÃO PROFISSIONAL (80mm e A4)
-        // ==========================================
-        function executarImpressaoCupom80mm(mesa) {
-            const nomeBar = document.getElementById('topbar-nome-empresa')?.innerText || "COMMANDABAR";
-            const cnpjBar = document.getElementById('input-config-cnpj-loja')?.value || "CNPJ NÃO REGISTRADO";
-            
-            let janela = window.open('', '_blank');
-            
-            // Agrupador multiplicador inteligente (Ex: Hamburguer x3)
-            let contagem = {};
-            mesa.produtos.forEach(p => { contagem[p.nome] = (contagem[p.nome] || 0) + 1; });
-
-            let blocoItens = "";
-            for (let nome in contagem) {
-                blocoItens += `<p style="margin: 3px 0;">${nome} <span style="float:right;">x${contagem[nome]}</span></p>`;
-            }
-
-            janela.document.write(`
-                <html>
-                <head>
-                    <style>
-                        body { width: 80mm; font-family: monospace; font-size: 11px; margin: 0; padding: 4mm; color: #000; background: #fff; }
-                        .center { text-align: center; }
-                        .line { border-top: 1px dashed #000; margin: 4mm 0; }
-                        .bold { font-weight: bold; }
-                    </style>
-                </head>
-                <body>
-                    <div class="center">
-                        <h3 class="bold" style="margin: 0 0 2px 0; font-size: 14px;">${nomeBar}</h3>
-                        <p style="margin: 0;">CNPJ/CPF: ${cnpjBar}</p>
-                        <p style="margin: 2px 0 0 0;">Identificador: <span class="bold">${mesa.nome}</span></p>
-                    </div>
-                    <div class="line"></div>
-                    <div class="bold center">EXTRATO SIMPLIFICADO DE CONTA</div>
-                    <div class="line"></div>
-                    ${blocoItens}
-                    <div class="line"></div>
-                    <p class="bold" style="font-size: 13px; margin: 0;">TOTAL IMPRESSO: <span style="float:right;">R$ ${parseFloat(mesa.total).toFixed(2)}</span></p>
-                    <p style="margin: 4px 0 0 0;">Meio de Carga: ${document.getElementById('modal-select-forma-pagamento').value}</p>
-                    <div class="line"></div>
-                    <div class="center" style="font-size: 9px;"><p>Documento sem valor fiscal.<br>Obrigado pela preferência!</p></div>
-                </body>
-                </html>
-            `);
-            janela.document.close();
-            janela.print();
-            janela.close();
-        }
-
-        function imprimirRelatorioCaixaA4() {
-            const nomeBar = document.getElementById('topbar-nome-empresa')?.innerText || "COMMANDABAR";
-            const cnpjBar = document.getElementById('input-config-cnpj-loja')?.value || "CNPJ NÃO REGISTRADO";
-            const tabelaHTML = document.getElementById('tabela-lista-historico').innerHTML;
-            const totalFaturado = document.getElementById('card-faturamento-historico-val').innerText;
-
-            let janela = window.open('', '_blank');
-            janela.document.write(`
-                <html>
-                <head>
-                    <title>Fechamento de Caixa</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 20mm; color: #000; background: #fff; }
-                        .header { border-bottom: 2px solid #000; padding-bottom: 4mm; margin-bottom: 6mm; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 5mm; }
-                        th, td { border: 1px solid #ccc; padding: 10px; text-align: left; font-size: 12px; }
-                        th { background-color: #f5f5f5; font-weight: bold; }
-                        .total-box { margin-top: 6mm; text-align: right; font-size: 16px; font-weight: bold; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <h2>${nomeBar}</h2>
-                        <p><strong>Inscrição Corporativa (CNPJ/CPF):</strong> ${cnpjBar}</p>
-                        <p><strong>Data de Extração:</strong> ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
-                        <hr style="border: 0; border-top: 1px solid #000; margin-top: 4mm;">
-                        <h3 style="margin-top: 3mm; letter-spacing: 0.5px;">RELATÓRIO CONSOLIDADO DE FECHAMENTO DE TURNO</h3>
-                    </div>
-                    <table>
+            <div id="conteudo-estoque-pro" class="bg-white p-8 rounded-3xl border shadow-sm max-w-4xl mx-auto">
+                <h2 class="text-2xl font-black text-gray-900 tracking-tight">Controle de Estoque</h2>
+                <div class="overflow-x-auto mt-6 border border-gray-100 rounded-2xl">
+                    <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr>
-                                <th>Mesa / Código</th>
-                                <th>Data Fechamento</th>
-                                <th>Produtos Consumidos (Qtd)</th>
-                                <th>Pagamento</th>
-                                <th>Total</th>
+                            <tr class="bg-gray-50 border-b text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="p-4">Produto</th>
+                                <th class="p-4">Categoria</th>
+                                <th class="p-4 text-center">Quantidade</th>
+                                <th class="p-4 text-right">Status</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${tabelaHTML || '<tr><td colspan="5">Nenhuma transação registrada neste turno.</td></tr>'}
-                        </tbody>
+                        <tbody id="tabela-lista-estoque" class="text-sm divide-y"></tbody>
                     </table>
-                    <div class="total-box">FATURAMENTO TOTAL DO TURNO: ${totalFaturado}</div>
-                </body>
-                </html>
-            `);
-            janela.document.close();
-            janela.print();
-            janela.close();
-        }
+                </div>
+            </div>
+        </section>
 
-        // ==========================================
-        // 7. SUBSISTEMAS AUXILIARES E INTERFACE
-        // ==========================================
-        async function carregarDadosConfiguracaoPerfil() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return;
-            const plano = session.user.user_metadata?.plano || 'free';
-            const role = localStorage.getItem('user_role') || 'dono';
-            sincronizarEstruturasPorPlano(plano, role);
-            
-            const topbar = document.getElementById('topbar-nome-empresa');
-            if(topbar && session.user.user_metadata?.nome_estabelecimento) {
-                topbar.innerText = session.user.user_metadata.nome_estabelecimento.toUpperCase();
+        <section id="aba-caixa" class="hidden space-y-6">
+            <div id="tela-bloqueio-free" class="hidden bg-gradient-to-br from-gray-900 to-slate-900 text-white p-12 rounded-3xl text-center shadow-xl max-w-2xl border border-gray-800 mx-auto">
+                <div class="w-14 h-14 bg-amber-500/10 text-amber-400 rounded-2xl flex items-center justify-center text-xl mx-auto mb-4 border border-amber-500/20">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h3 id="titulo-bloqueio-caixa" class="text-xl font-black tracking-tight">Recurso Premium</h3>
+                <p id="desc-bloqueio-caixa" class="text-gray-400 text-sm mt-2 max-w-md mx-auto leading-relaxed">
+                    A visualização do fechamento consolidado do turno e os relatórios gerenciais estruturados de fluxo de caixa em formato A4 são recursos do Plano Premium.
+                </p>
+                <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button onclick="mudarAba('perfil')" class="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black px-6 py-3 rounded-xl text-xs shadow-md">
+                        <i class="fa-solid fa-crown"></i> Migrar para Plano Premium Agora
+                    </button>
+                </div>
+            </div>
+
+            <div id="conteudo-caixa-pro" class="bg-white p-8 rounded-3xl border shadow-sm max-w-4xl mx-auto">
+                <h2 class="text-2xl font-black text-gray-900 tracking-tight">Fechamento Consolidado do Turno</h2>
+                <p class="text-gray-500 text-sm mt-1">Dados reais calculados de forma dinâmica baseados nas comandas pagas.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    <div class="bg-gray-50 p-6 rounded-2xl border space-y-3">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Entradas por Operação</h4>
+                        <div class="flex justify-between text-sm border-b pb-2"><span class="text-gray-600 font-medium">Dinheiro / À Vista</span><span id="cx-avista" class="font-bold text-gray-900">R$ 0,00</span></div>
+                        <div class="flex justify-between text-sm border-b pb-2"><span class="text-gray-600 font-medium">Cartão de Débito</span><span id="cx-debito" class="font-bold text-gray-900">R$ 0,00</span></div>
+                        <div class="flex justify-between text-sm border-b pb-2"><span class="text-gray-600 font-medium">Cartão de Crédito</span><span id="cx-credito" class="font-bold text-gray-900">R$ 0,00</span></div>
+                        <div class="flex justify-between text-sm pb-1"><span class="text-gray-600 font-medium">Transferência PIX</span><span id="cx-pix" class="font-bold text-gray-900">R$ 0,00</span></div>
+                    </div>
+
+                    <div class="bg-gray-50 p-6 rounded-2xl border flex flex-col justify-between">
+                        <div class="space-y-2">
+                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Resumo de Faturamento</h4>
+                            <div class="flex justify-between text-sm pt-2"><span class="text-gray-500">Valor Bruto do Salão:</span><span id="cx-bruto" class="font-semibold text-gray-700">R$ 0,00</span></div>
+                            <div class="flex justify-between text-sm"><span class="text-gray-500">Taxa de Serviço Opcional Coletada:</span><span id="cx-taxa" class="font-semibold text-orange-600">R$ 0,00</span></div>
+                        </div>
+                        <div class="border-t pt-4 mt-4">
+                            <span class="text-xs text-gray-400 uppercase tracking-widest font-bold">Total Geral Arrecadado</span>
+                            <h3 id="cx-total-geral" class="text-3xl font-black text-gray-900 mt-1">R$ 0,00</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 border-t pt-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">Itens Consumidos no Turno (Geral)</h3>
+                    <div class="bg-white border rounded-2xl overflow-hidden">
+                        <div id="lista-consumo-turno" class="divide-y text-sm"></div>
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-6 border-t flex items-center gap-4">
+                    <button onclick="imprimirExtratoCaixaCompleto()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl transition text-sm">
+                        <i class="fa-solid fa-print mr-1"></i> Imprimir Relatório de Caixa (A4)
+                    </button>
+                    <button onclick="zerarTurnoCompleto()" class="bg-gray-100 hover:bg-200 text-gray-800 font-bold px-6 py-3 rounded-xl transition text-sm">Zerar Turno</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="aba-suporte" class="hidden space-y-6">
+            <div class="bg-white p-8 md:p-10 rounded-3xl border shadow-sm max-w-xl text-center mx-auto">
+                <div class="w-16 h-16 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto text-2xl mb-4">
+                    <i class="fa-solid fa-headset"></i>
+                </div>
+                <h2 class="text-2xl font-black text-gray-900 tracking-tight">Suporte Comercial</h2>
+                
+                <p class="text-gray-500 text-sm mt-3 max-w-sm mx-auto leading-relaxed font-medium">
+                    Precisa de ajuda para mudar de plano, tirar dúvidas técnicas ou quer sugerir melhorias para o seu negócio? Fale com a nossa equipe.
+                </p>
+
+                <div class="mt-6">
+                    <a href="https://wa.me/+5581996332963" target="_blank" class="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#20ba56] text-white font-bold px-6 py-3.5 rounded-xl text-sm transition-all shadow-md">
+                        <i class="fa-brands fa-whatsapp text-lg"></i> Chamar no WhatsApp
+                    </a>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // Sistema básico de login simulado
+          function sairDoSistema() {
+                 localStorage.removeItem('usuarioLogado');
+                 window.location.href = 'login.html';
+         }
+
+        // Variável de controle do Plano Centralizador ('free' ou 'premium')
+        let planoAtualAtivo = 'premium'; 
+
+        function atualizarRelogioSalao() {
+            const containerRelogio = document.getElementById('txt-relogio-salao');
+            if (containerRelogio) {
+                const agora = new Date();
+                const opcoesData = { weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' };
+                containerRelogio.innerText = `${agora.toLocaleDateString('pt-BR', opcoesData)} - ${agora.toLocaleTimeString('pt-BR')}`;
             }
+        }
+        setInterval(atualizarRelogioSalao, 1000);
+
+        let categoriasAtivas = [];
+        
+        let cardapioProdutos = [];
+
+        let mesaSelecionadaIndex = null; 
+        let metodoPagamentoSelecionado = "pix"; 
+
+        let dadosPerfil = {
+            nome: "Meu Bar & Restaurante Ltda",
+            cnpj: "12.345.678/0001-99"
+        };
+
+        // Layout inicial de mesas
+        let mesas = [
+            { id: "Mesa 01", status: "Livre", valor: 0.00, hora: "-", itens: [] },
+            
+        ];
+
+        let historicoFechamento = {
+            faturamentoFechado: 0.00,
+            taxaServicoColetada: 0.00,
+            avista: 0.00,
+            debito: 0.00,
+            credito: 0.00,
+            pix: 0.00,
+            itensConsumidos: []
+        };
+
+        function toggleDropdownSino() {
+            if (planoAtualAtivo === 'free') {
+                alert("🔒 Alertas de estoque baixo são um recurso exclusivo do Plano Premium.");
+                return;
+            }
+            document.getElementById('sino-dropdown').classList.toggle('ativo');
         }
 
         function atualizarAlertasSino() {
-            const badge = document.getElementById('notificacao-contador');
-            const sino = document.getElementById('icone-sino-alerta');
-            if (!badge || !sino) return;
+            const contador = document.getElementById('sino-contador');
+            const lista = document.getElementById('sino-lista-alertas');
+            if(!lista || !contador) return;
 
-            const criticos = cardapioProdutos.filter(p => p.estoque !== null && p.estoque <= 5);
-            if (criticos.length > 0) {
-                badge.innerText = criticos.length;
-                badge.classList.remove('hidden');
-                sino.className = "fa-solid fa-bell text-red-500 text-lg animate-bounce";
+            if (planoAtualAtivo === 'free') {
+                contador.classList.add('hidden');
+                lista.innerHTML = `<div class="p-2 text-center text-gray-400 text-[11px]">Módulo Bloqueado no Plano Free.</div>`;
+                return;
+            }
+
+            lista.innerHTML = "";
+            let totalAlertas = 0;
+
+            cardapioProdutos.forEach(prod => {
+                if (prod.estoque <= 10) {
+                    totalAlertas++;
+                    const itemAviso = document.createElement('div');
+                    itemAviso.className = "py-2 flex items-center justify-between text-gray-700";
+                    if (prod.estoque === 0) {
+                        itemAviso.innerHTML = `<span>🚨 <b>${prod.nome}</b></span> <span class="bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded text-[10px]">Esgotado</span>`;
+                    } else {
+                        itemAviso.innerHTML = `<span>⚠️ <b>${prod.nome}</b></span> <span class="bg-yellow-100 text-yellow-700 font-bold px-2 py-0.5 rounded text-[10px]">${prod.estoque} un restando</span>`;
+                    }
+                    lista.appendChild(itemAviso);
+                }
+            });
+
+            if (totalAlertas > 0) {
+                contador.innerText = totalAlertas;
+                contador.classList.remove('hidden');
             } else {
-                badge.classList.add('hidden');
-                sino.className = "fa-solid fa-bell text-gray-400 text-lg";
+                contador.classList.add('hidden');
+                lista.innerHTML = `<div class="p-2 text-center text-gray-400 text-[11px]">Estoque abastecido!</div>`;
             }
         }
 
-        async function executarLogout() {
-            if(!confirm("Deseja realmente encerrar a sessão?")) return;
-            await supabaseClient.auth.signOut();
-            localStorage.clear();
-            window.location.href = 'login.html';
+        // =========================================================================
+        // NOVAS FUNÇÕES PEDIDAS NO SALÃO (LIMPAR VAZIAS E ZERAR TURNO)
+        // =========================================================================
+        function limparMesasVazias() {
+            if (confirm("Deseja remover as mesas vazias extras criadas sem consumo?")) {
+                mesas = mesas.filter(m => m.status === "Ocupada" || m.itens.length > 0);
+                fecharPainelMesa();
+                renderizarSalao();
+            }
         }
 
-        // Inicializador de Entrada na Página
-        window.addEventListener('DOMContentLoaded', async () => {
-            iniciarRelogioDoPainel();
-            await carregarDadosConfiguracaoPerfil();
-            mudarAba('salao');
-        });
+        // =========================================================================
+        // VALIDAÇÕES IMPEDITIVAS DE LIMITES DE PLANO
+        // =========================================================================
+        function verificarLimiteMesasExcedido() {
+            const mesasAtivas = mesas.filter(m => m.status === "Ocupada").length;
+            if (planoAtualAtivo === 'free' && mesasAtivas >= 5) {
+                alert("⚠️ Limite de Mesas Atingido! O Plano Free permite apenas 5 mesas ativas/ocupadas simultaneamente. Faça o upgrade para o Plano Premium para ter mesas ILIMITADAS!");
+                return true; 
+            }
+            return false; 
+        }
+
+        function verificarLimiteCategoriasExcedido() {
+            if (planoAtualAtivo === 'free' && categoriasAtivas.length >= 5) {
+                alert("⚠️ Limite de Categorias Atingido! O Plano Free permite o cadastro de no máximo 3 categorias. Migre para o Plano Premium para ter cadastros ILIMITADOS!");
+                return true;
+            }
+            return false;
+        }
+
+        function verificarLimiteProdutosExcedido() {
+            if (planoAtualAtivo === 'free' && cardapioProdutos.length >= 10) {
+                alert("⚠️ Limite de Produtos Atingido! O Plano Free permite o cadastro de no máximo 10 produtos. Migre para o Plano Premium para ter cadastros ILIMITADOS!");
+                return true;
+            }
+            return false;
+        }
+
+        function atualizarTravasFormulariosVisuais() {
+            const avisoCat = document.getElementById('aviso-limite-categoria');
+            const btnCat = document.getElementById('btn-submit-categoria');
+            const inputCat = document.getElementById('input-nome-categoria');
+            const contadorCat = document.getElementById('qtd-contador-categoria');
+            
+            const avisoProd = document.getElementById('aviso-limite-produto');
+            const btnProd = document.getElementById('btn-submit-produto');
+            const inputProd = document.getElementById('input-nome-produto');
+            const contadorProd = document.getElementById('qtd-contador-produto');
+
+            if(contadorCat) contadorCat.innerText = `(${categoriasAtivas.length}${planoAtualAtivo === 'free' ? '/5' : ''})`;
+            if(contadorProd) contadorProd.innerText = `(${cardapioProdutos.length}${planoAtualAtivo === 'free' ? '/10' : ''})`;
+
+            if (planoAtualAtivo === 'free' && categoriasAtivas.length >= 5) {
+                if(avisoCat) avisoCat.classList.remove('hidden');
+                if(btnCat) btnCat.disabled = true; if(btnCat) btnCat.className = "w-full bg-gray-300 text-gray-500 font-bold px-6 py-3 rounded-xl cursor-not-allowed text-sm";
+                if(inputCat) inputCat.disabled = true;
+            } else {
+                if(avisoCat) avisoCat.classList.add('hidden');
+                if(btnCat) btnCat.disabled = false; if(btnCat) btnCat.className = "w-full bg-[#f97316] hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl transition text-sm";
+                if(inputCat) inputCat.disabled = false;
+            }
+
+            if (planoAtualAtivo === 'free' && cardapioProdutos.length >= 10) {
+                if(avisoProd) avisoProd.classList.remove('hidden');
+                if(btnProd) btnProd.disabled = true; if(btnProd) btnProd.className = "w-full bg-gray-300 text-gray-500 font-bold px-6 py-3 rounded-xl cursor-not-allowed text-sm";
+                if(inputProd) inputProd.disabled = true;
+            } else {
+                if(avisoProd) avisoProd.classList.add('hidden');
+                if(btnProd) btnProd.disabled = false; if(btnProd) btnProd.className = "w-full bg-[#f97316] hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl transition text-sm";
+                if(inputProd) inputProd.disabled = false;
+            }
+        }
+
+        function abrirNovaMesaDinamica() {
+            if (verificarLimiteMesasExcedido()) return;
+
+            const idMesa = prompt("Digite o número ou nome da nova mesa:");
+            if (!idMesa || idMesa.trim() === "") return;
+            
+            const agora = new Date();
+            mesas.push({ 
+                id: idMesa.trim(), 
+                status: "Livre", 
+                valor: 0.00, 
+                hora: `${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}`, 
+                itens: [] 
+            });
+            renderizarSalao();
+        }
+
+        function adicionarItemMesa() {
+            if (mesaSelecionadaIndex === null) return;
+            let mesa = mesas[mesaSelecionadaIndex];
+
+            if (mesa.status === "Livre") {
+                if (verificarLimiteMesasExcedido()) return;
+            }
+
+            const nomeDigitado = document.getElementById('add-item-selecao').value.trim();
+            const produto = cardapioProdutos.find(p => p.nome.toLowerCase() === nomeDigitado.toLowerCase());
+            
+            if (!produto) {
+                alert("Produto não cadastrado!");
+                return;
+            }
+
+            if (planoAtualAtivo !== 'free') {
+                if (produto.estoque <= 0) {
+                    alert(`🚨 Item Indisponível no estoque mestre!`);
+                    return;
+                }
+                produto.estoque -= 1;
+            }
+
+            mesa.status = "Ocupada";
+
+            let existente = mesa.itens.find(i => i.nome.toLowerCase() === produto.nome.toLowerCase());
+            if (existente) {
+                existente.qtd += 1; 
+                existente.total = existente.qtd * existente.preco;
+            } else {
+                mesa.itens.push({ nome: produto.nome, qtd: 1, preco: produto.preco, total: produto.preco });
+            }
+
+            mesa.valor += produto.preco;
+            document.getElementById('add-item-selecao').value = ""; 
+            
+            renderizarEstoqueDinamico(); 
+            renderizarSalao();
+        }
+
+        function renderizarSalao() {
+            const grid = document.getElementById('grid-mesas');
+            if (!grid) return; grid.innerHTML = "";
+            let ocupadas = 0;
+
+            mesas.forEach((mesa, index) => {
+                const isLivre = mesa.status === "Livre";
+                if (!isLivre) ocupadas++;
+
+                grid.innerHTML += `
+                    <div onclick="selecionarMesaParaGerenciamento(${index})" class="bg-white p-5 border rounded-2xl shadow-sm hover:shadow-md transition text-center cursor-pointer">
+                        <div class="w-12 h-12 ${isLivre ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'} rounded-full flex items-center justify-center mx-auto text-sm font-bold mb-2">${mesa.id.substring(0,4)}</div>
+                        <h4 class="font-bold text-gray-900 text-sm truncate">${mesa.id}</h4>
+                        <span class="text-[10px] ${isLivre ? 'text-green-600 bg-green-50' : 'text-orange-600 bg-orange-50'} font-semibold px-2.5 py-0.5 rounded-full inline-block mt-1">${mesa.status}</span>
+                        <p class="text-xs font-bold text-gray-900 mt-2">R$ ${mesa.valor.toFixed(2)}</p>
+                    </div>`;
+            });
+
+            document.getElementById('txt-qtd-mesas-abertas').innerText = `${ocupadas} mesa(s) ocupada(s)`;
+            let faturamentoGeralAbsoluto = historicoFechamento.faturamentoFechado + historicoFechamento.taxaServicoColetada;
+            document.getElementById('faturamento-total-unificado').innerText = `R$ ${faturamentoGeralAbsoluto.toFixed(2)}`;
+            
+            renderizarRelatorioCaixaCompleto();
+            if (mesaSelecionadaIndex !== null && mesas[mesaSelecionadaIndex]) carregarDadosMesaNoPainel();
+        }
+
+        function selecionarMesaParaGerenciamento(index) {
+            mesaSelecionadaIndex = index;
+            document.getElementById('painel-gerenciamento-mesa').classList.remove('hidden');
+            document.getElementById('switch-taxa-mesa').checked = false;
+            selecionarMetodoPagamento('pix');
+            carregarDadosMesaNoPainel();
+            document.getElementById('painel-gerenciamento-mesa').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function fecharPainelMesa() {
+            mesaSelecionadaIndex = null;
+            document.getElementById('painel-gerenciamento-mesa').classList.add('hidden');
+        }
+
+        function carregarDadosMesaNoPainel() {
+            if (mesaSelecionadaIndex === null || !mesas[mesaSelecionadaIndex]) return;
+            let mesa = mesas[mesaSelecionadaIndex];
+            document.getElementById('gerencia-titulo-mesa').innerText = `Gerenciando ${mesa.id}`;
+            document.getElementById('gerencia-hora-mesa').innerText = `Abertura: ${mesa.hora}`;
+            
+            const container = document.getElementById('gerencia-lista-itens');
+            container.innerHTML = "";
+
+            if (mesa.itens.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center text-gray-400 text-xs">Mesa vazia. Adicione itens acima.</div>`;
+            } else {
+                mesa.itens.forEach((item, idx) => {
+                    container.innerHTML += `
+                        <div class="flex justify-between p-3 items-center hover:bg-gray-100 transition">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-gray-800">${item.nome}</span>
+                                <span class="text-xs text-gray-400">${item.qtd}x R$ ${item.preco.toFixed(2)}</span>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <span class="font-black text-gray-900">R$ ${item.total.toFixed(2)}</span>
+                                <div class="flex items-center border rounded-xl bg-white overflow-hidden">
+                                    <button onclick="alterarQuantidadeItemMesa(${idx}, -1)" class="px-2.5 py-1 text-xs border-r">-</button>
+                                    <button onclick="alterarQuantidadeItemMesa(${idx}, 1)" class="px-2.5 py-1 text-xs">+</button>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+            }
+            recalcularValoresFechamentoMesa();
+        }
+
+        function alterarQuantidadeItemMesa(itemIdx, operacao) {
+            let mesa = mesas[mesaSelecionadaIndex];
+            let item = mesa.itens[itemIdx];
+            const produtoMestre = cardapioProdutos.find(p => p.nome === item.nome);
+
+            if (operacao === 1) {
+                if (planoAtualAtivo !== 'free' && produtoMestre.estoque <= 0) {
+                    alert("🚨 Estoque insuficiente!");
+                    return;
+                }
+                if (planoAtualAtivo !== 'free') produtoMestre.estoque -= 1;
+                item.qtd += 1;
+            } else {
+                if (planoAtualAtivo !== 'free') produtoMestre.estoque += 1;
+                item.qtd -= 1;
+            }
+
+            if (item.qtd <= 0) {
+                mesa.valor -= item.preco;
+                mesa.itens.splice(itemIdx, 1);
+            } else {
+                let antigo = item.total;
+                item.total = item.qtd * item.preco;
+                mesa.valor = (mesa.valor - antigo) + item.total;
+            }
+
+            if (mesa.itens.length === 0) { mesa.status = "Livre"; mesa.valor = 0; mesa.hora = "-"; }
+            
+            renderizarEstoqueDinamico();
+            renderizarSalao();
+        }
+
+        function selecionarMetodoPagamento(metodo) {
+            metodoPagamentoSelecionado = metodo;
+            ['credito', 'debito', 'pix', 'avista'].forEach(m => {
+                document.getElementById(`btn-pay-${m}`).className = m === metodo ? 
+                "py-2 px-3 text-xs font-bold border rounded-xl bg-orange-500 text-white border-orange-500 shadow-sm" : 
+                "py-2 px-3 text-xs font-bold border rounded-xl bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100";
+            });
+        }
+
+        function recalcularValoresFechamentoMesa() {
+            if (mesaSelecionadaIndex === null || !mesas[mesaSelecionadaIndex]) return;
+            let mesa = mesas[mesaSelecionadaIndex];
+            let possuiTaxa = document.getElementById('switch-taxa-mesa').checked;
+            let taxa = possuiTaxa ? (mesa.valor * 0.10) : 0;
+            
+            document.getElementById('gerencia-txt-parcial').innerText = `R$ ${mesa.valor.toFixed(2)}`;
+            document.getElementById('gerencia-txt-total').innerText = `R$ ${(mesa.valor + taxa).toFixed(2)}`;
+        }
+
+        function confirmarFechamentoPagamento() {
+            if (mesaSelecionadaIndex === null) return;
+            let mesa = mesas[mesaSelecionadaIndex];
+            if (mesa.itens.length === 0) return;
+
+            let possuiTaxa = document.getElementById('switch-taxa-mesa').checked;
+            let taxa = possuiTaxa ? (mesa.valor * 0.10) : 0;
+
+            historicoFechamento.faturamentoFechado += mesa.valor;
+            historicoFechamento.taxaServicoColetada += taxa;
+            historicoFechamento[metodoPagamentoSelecionado] += (mesa.valor + taxa);
+
+            mesa.itens.forEach(itemMesa => {
+                let jafoi = historicoFechamento.itensConsumidos.find(i => i.nome === itemMesa.nome);
+                if (jafoi) {
+                    jafoi.qtd += itemMesa.qtd; jafoi.total += itemMesa.total;
+                } else {
+                    historicoFechamento.itensConsumidos.push({ nome: itemMesa.nome, qtd: itemMesa.qtd, total: itemMesa.total });
+                }
+            });
+
+            alert(`✅ Conta finalizada com sucesso!`);
+            mesa.status = "Livre"; mesa.valor = 0; mesa.hora = "-"; mesa.itens = [];
+            
+            fecharPainelMesa();
+            renderizarSalao();
+        }
+
+        // =========================================================================
+        // ATUALIZAÇÃO REGRAS DO PLANO CENTRALIZADOR
+        // =========================================================================
+        function atualizarStatusPlano(nivel) {
+            planoAtualAtivo = nivel;
+            
+            const seloPlano = document.getElementById('selo-plano-atual');
+            const txtSelo = document.getElementById('txt-selo-plano');
+            const btnVirarPro = document.getElementById('btn-virar-pro');
+            const txtSidebar = document.getElementById('txt-status-sidebar');
+            const btnZerarTurnoFree = document.getElementById('btn-zerar-turno-free');
+            
+            const btnFree = document.getElementById('btn-test-free');
+            const btnPremium = document.getElementById('btn-test-premium');
+            
+            [btnFree, btnPremium].forEach(b => b.className = "py-2 px-2 text-[11px] font-bold border rounded-xl transition bg-white text-gray-700 border-gray-200");
+
+            if (nivel === 'free') {
+                txtSelo.innerText = "Plano Free (7 dias Pro incluídos)";
+                seloPlano.className = "inline-flex items-center gap-1 bg-gray-100 text-gray-700 border border-gray-300 text-xs font-black px-2.5 py-1 rounded-xl shadow-sm";
+                if(btnVirarPro) btnVirarPro.classList.remove('hidden');
+                if(btnZerarTurnoFree) btnZerarTurnoFree.classList.remove('hidden'); // Visível no plano Free
+                txtSidebar.className = "text-gray-400 bg-gray-800 px-2 py-0.5 border border-gray-700 rounded-md text-[11px]";
+                txtSidebar.innerText = "Free";
+                btnFree.className = "py-2 px-2 text-[11px] font-bold border rounded-xl transition bg-gray-700 text-white border-gray-700 shadow-sm";
+            } else if (nivel === 'premium') {
+                txtSelo.innerText = "Plano Premium";
+                seloPlano.className = "inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-black px-2.5 py-1 rounded-xl shadow-sm";
+                if(btnVirarPro) btnVirarPro.classList.add('hidden');
+                if(btnZerarTurnoFree) btnZerarTurnoFree.classList.add('hidden'); // Oculto no plano Premium
+                txtSidebar.className = "text-amber-500 bg-amber-500/10 px-2 py-0.5 border border-amber-500/20 rounded-md text-[11px]";
+                txtSidebar.innerText = "Premium";
+                btnPremium.className = "py-2 px-2 text-[11px] font-bold border rounded-xl transition bg-amber-500 text-white border-amber-500 shadow-sm";
+            }
+
+            atualizarAlertasSino();
+            atualizarTravasFormulariosVisuais();
+            renderizarSalao();
+        }
+
+        function mudarAba(nomeAba) {
+            const todasAbas = ['perfil', 'salao', 'categoria', 'produto', 'estoque', 'caixa', 'suporte'];
+            
+            const telaBloqueioCaixa = document.getElementById('tela-bloqueio-free');
+            const conteudoCaixa = document.getElementById('conteudo-caixa-pro');
+
+            const telaBloqueioEstoque = document.getElementById('tela-bloqueio-estoque-free');
+            const conteudoEstoque = document.getElementById('conteudo-estoque-pro');
+            
+            todasAbas.forEach(aba => {
+                document.getElementById(`aba-${aba}`).classList.add('hidden');
+                document.getElementById(`btn-${aba}`).className = "w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition bg-transparent text-gray-400 hover:bg-gray-800 hover:text-white";
+            });
+            
+            document.getElementById(`aba-${nomeAba}`).classList.remove('hidden');
+            document.getElementById(`btn-${nomeAba}`).className = "w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition bg-orange-500 text-white shadow-lg shadow-orange-500/10";
+            document.getElementById('sino-dropdown').classList.remove('ativo');
+
+            atualizarTravasFormulariosVisuais();
+
+            if (nomeAba === 'estoque') {
+                if (planoAtualAtivo === 'free') {
+                    telaBloqueioEstoque.classList.remove('hidden');
+                    conteudoEstoque.classList.add('hidden');
+                } else {
+                    telaBloqueioEstoque.classList.add('hidden');
+                    conteudoEstoque.classList.remove('hidden');
+                    renderistarTabelaEstoqueDados(); 
+                }
+            }
+
+            if (nomeAba === 'caixa') {
+                if (planoAtualAtivo === 'free') {
+                    telaBloqueioCaixa.classList.remove('hidden');
+                    conteudoCaixa.classList.add('hidden');
+                } else {
+                    telaBloqueioCaixa.classList.add('hidden');
+                    conteudoCaixa.classList.remove('hidden');
+                    renderizarRelatorioCaixaCompleto();
+                }
+            }
+        }
+
+        function renderistarTabelaEstoqueDados() {
+            const tbody = document.getElementById('tabela-lista-estoque');
+            if (!tbody) return; tbody.innerHTML = "";
+
+            cardapioProdutos.forEach((prod, index) => {
+                let badge = prod.estoque === 0 ? `<span class="bg-red-50 text-red-600 text-xs px-2.5 py-0.5 rounded-full font-bold">Crítico</span>` :
+                            prod.estoque <= 10 ? `<span class="bg-yellow-50 text-yellow-700 text-xs px-2.5 py-0.5 rounded-full font-bold">Baixo</span>` :
+                            `<span class="bg-green-50 text-green-700 text-xs px-2.5 py-0.5 rounded-full font-bold">Estável</span>`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-4 font-bold text-gray-900">${prod.nome}</td>
+                        <td class="p-4 text-gray-500">${prod.categoria}</td>
+                        <td class="p-4 text-center">
+                            <div class="flex items-center justify-center space-x-2">
+                                <button onclick="alterarEstoqueManual(${index}, -1)" class="w-7 h-7 bg-gray-100 rounded-lg text-sm font-bold border">-</button>
+                                <span class="w-12 font-semibold text-gray-800">${prod.estoque} un</span>
+                                <button onclick="alterarEstoqueManual(${index}, 1)" class="w-7 h-7 bg-gray-100 rounded-lg text-sm font-bold border">+</button>
+                            </div>
+                        </td>
+                        <td class="p-4 text-right">${badge}</td>
+                    </tr>`;
+            });
+        }
+
+        function renderizarEstoqueDinamico() {
+    const tbody = document.getElementById('tabela-estoque-corpo'); // verifique se o ID é exatamente esse no seu HTML
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    cardapioProdutos.forEach((prod, index) => {
+        // CORREÇÃO 1: Evita o [object Object] na coluna de categoria
+        const nomeCategoria = typeof prod.categoria === 'object' ? prod.categoria.nome : prod.categoria;
+        
+        // CORREÇÃO 2: Garante que lê o estoque real vindo do banco (se não tiver, assume 0)
+        const estoqueAtual = prod.estoque !== undefined && prod.estoque !== null ? prod.estoque : 0;
+
+        // Define a cor e o texto do badge de status igual ao seu design original
+        let statusBadge = `<span class="bg-red-50 text-red-600 px-2 py-1 rounded-full text-xs font-semibold">Crítico</span>`;
+        if (estoqueAtual > 10) {
+            statusBadge = `<span class="bg-green-50 text-green-600 px-2 py-1 rounded-full text-xs font-semibold">Bom</span>`;
+        } else if (estoqueAtual > 0) {
+            statusBadge = `<span class="bg-yellow-50 text-yellow-600 px-2 py-1 rounded-full text-xs font-semibold">Alerta</span>`;
+        }
+
+        tbody.innerHTML += `
+            <tr class="border-b hover:bg-gray-50 text-sm text-gray-700">
+                <td class="p-4 font-bold text-gray-900">${prod.nome}</td>
+                <td class="p-4 text-gray-500">${nomeCategoria}</td>
+                <td class="p-4">
+                    <div class="flex items-center space-x-2">
+                        <button onclick="atualizarEstoqueUnitario(${index}, -1)" class="px-2 py-1 bg-gray-100 rounded text-gray-600 hover:bg-gray-200 font-bold">-</button>
+                        <span class="w-8 text-center font-semibold">${estoqueAtual} un</span>
+                        <button onclick="atualizarEstoqueUnitario(${index}, 1)" class="px-2 py-1 bg-gray-100 rounded text-gray-600 hover:bg-gray-200 font-bold">+</button>
+                    </div>
+                </td>
+                <td class="p-4">${statusBadge}</td>
+            </tr>
+        `;
+    });
+
+        }
+
+        async function alterarEstoqueManual(index, operacao) {
+    const produto = cardapioProdutos[index];
+    if (!produto) return;
+
+    // Garante que o estoque atual seja lido como número válido
+    let estoqueAtual = produto.estoque !== undefined && produto.estoque !== null ? produto.estoque : 0;
+    
+    // Calcula o novo valor
+    let novo = estoqueAtual + operacao;
+    if (novo < 0) return; // Impede estoque negativo igual ao seu original
+
+    // 1. Atualiza na memória local para manter a resposta da tela instantânea
+    produto.estoque = novo;
+    
+    // 2. Dispara as suas funções originais de atualizar a tela e o sininho
+    renderistarTabelaEstoqueDados();
+    atualizarAlertasSino();
+
+    // 3. Salva de verdade no Supabase para nunca mais sumir no F5!
+    try {
+        const { error } = await supabaseClient
+            .from('produtos')
+            .update({ estoque: novo })
+            .eq('id', produto.id);
+
+        if (error) throw error;
+        console.log("Estoque sincronizado no Supabase!");
+    } catch (err) {
+        console.error("Erro ao sincronizar estoque:", err.message);
+    }
+
+        }
+
+        function renderizarCategorias() {
+    const tbody = document.getElementById('tabela-lista-categorias');
+    const selectProduto = document.getElementById('select-categorias-produto');
+    if(!tbody || !selectProduto) return;
+    tbody.innerHTML = ""; selectProduto.innerHTML = "";
+
+    categoriasAtivas.forEach((cat, index) => {
+        // CORREÇÃO AQUI: Se for um objeto do Supabase, pega o .nome. Se for texto puro, usa direto.
+        const nomeCategoria = typeof cat === 'object' ? cat.nome : cat;
+
+        tbody.innerHTML += `
+            <tr class="hover:bg-gray-50">
+                <td class="p-4 font-bold text-gray-900">${nomeCategoria}</td>
+                <td class="p-4 text-right">
+                    <button onclick="removerCategoriaDinamica(${index})" class="text-red-500 font-semibold text-xs">Excluir</button>
+                </td>
+            </tr>`;
+            
+        selectProduto.innerHTML += `<option value="${nomeCategoria}">${nomeCategoria}</option>`;
+    });
+    atualizarTravasFormulariosVisuais();
+}
+
+        async function criarNovaCategoriaDinamica() {
+    const inputNome = document.getElementById('input-nome-categoria');
+    const nomeCategoria = inputNome?.value.trim();
+
+    if (!nomeCategoria) return;
+
+    try {
+        // 1. Pega a sessão do usuário logado
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            alert("Sessão expirada. Faça login novamente.");
+            return;
+        }
+        const user_id = session.user.id;
+
+        // 2. BUSCA O PLANO DO USUÁRIO: Verifica se é 'free' ou 'pro'/'premium'
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        const planoUsuario = user?.user_metadata?.plano || 'free';
+
+        // 3. SE FOR FREE: Verifica se já tem 3 ou mais categorias cadastradas
+        if (planoUsuario === 'free') {
+            const { count, error: countError } = await supabaseClient
+                .from('categorias')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user_id);
+
+            if (countError) throw countError;
+
+            if (count >= 3) {
+                alert("Limite atingido! O Plano Free permite apenas até 3 categorias. Mude para o plano Pro para ter acesso ilimitado.");
+                return;
+            }
+        }
+
+        // 4. Se passou na validação, faz o INSERT no banco
+        const { error } = await supabaseClient.from('categorias').insert([
+            { 
+                nome: nomeCategoria,
+                user_id: user_id
+            }
+        ]);
+
+        if (error) throw error;
+
+        alert("Categoria salva com sucesso!");
+        if (inputNome) inputNome.value = "";
+        
+        // Atualiza a tela puxando o dado atualizado do banco
+        await carregarCategoriasDoBanco(); 
+
+    } catch (error) {
+        console.error("Erro ao salvar categoria:", error.message);
+        alert("Erro ao salvar categoria no banco de dados.");
+    }
+
+        }
+
+        function removerCategoriaDinamica(index) {
+            categoriasAtivas.splice(index, 1); renderizarCategorias();
+        }
+
+        function renderizarProdutosCardapio() {
+            const tbody = document.getElementById('tabela-lista-produtos');
+            if(!tbody) return; tbody.innerHTML = "";
+            cardapioProdutos.forEach((prod, index) => {
+                tbody.innerHTML += `<tr class="hover:bg-gray-50"><td class="p-4 font-bold text-gray-900">${prod.nome}</td><td class="p-4"><span class="bg-orange-50 text-orange-600 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-orange-100">${prod.categoria}</span></td><td class="p-4 font-semibold text-gray-700">R$ ${prod.preco.toFixed(2)}</td><td class="p-4 text-right"><button onclick="removerProdutoDinamico(${index})" class="text-red-500 font-semibold text-xs">Remover</button></td></tr>`;
+            });
+            atualizarTravasFormulariosVisuais();
+        }
+
+        async function cadastrarNovoProdutoDinamico() {
+    const inputNome = document.getElementById('input-nome-produto');
+    const inputPreco = document.getElementById('input-preco-produto');
+    const selectCategoria = document.getElementById('select-categorias-produto');
+
+    const nome = inputNome?.value.trim();
+    const preco = parseFloat(inputPreco?.value);
+    const categoria = selectCategoria?.value;
+
+    if (!nome || isNaN(preco) || !categoria) {
+        alert("Preencha todos os campos corretamente.");
+        return;
+    }
+
+    try {
+        // 1. Pega a sessão do usuário logado
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            alert("Sessão expirada. Faça login novamente.");
+            return;
+        }
+        const user_id = session.user.id;
+
+        // 2. BUSCA O PLANO DO USUÁRIO
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        const planoUsuario = user?.user_metadata?.plano || 'free';
+
+        // 3. SE FOR FREE: Verifica se já tem 10 ou mais produtos cadastrados
+        if (planoUsuario === 'free') {
+            const { count, error: countError } = await supabaseClient
+                .from('produtos')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user_id);
+
+            if (countError) throw countError;
+
+            if (count >= 10) {
+                alert("Limite atingido! O Plano Free permite apenas até 10 produtos. Mude para o plano Pro para ter acesso ilimitado.");
+                return;
+            }
+        }
+
+        // 4. Se passou na validação, faz o INSERT do produto no banco
+        const { error } = await supabaseClient.from('produtos').insert([
+            {
+                nome: nome,
+                preco: preco,
+                categoria: categoria,
+                estoque: 0, 
+                user_id: user_id
+            }
+        ]);
+
+        if (error) throw error;
+
+        alert("Produto cadastrado com sucesso!");
+
+        if (inputNome) inputNome.value = "";
+        if (inputPreco) inputPreco.value = "";
+
+        // Atualiza a lista na tela puxando o dado novo do banco
+        await carregarProdutosDoBanco();
+
+    } catch (error) {
+        console.error("Erro ao salvar produto:", error.message);
+        alert("Erro ao salvar produto no banco de dados.");
+    }
+}
+        
+
+        function removerProdutoDinamico(index) {
+            cardapioProdutos.splice(index, 1);
+            renderizarProdutosCardapio();
+            renderizarEstoqueDinamico();
+            atualizarSelectCardapioSalao();
+        }
+
+        function atualizarSelectCardapioSalao() {
+            const datalist = document.getElementById('lista-produtos-salao');
+            if (!datalist) return; datalist.innerHTML = "";
+            cardapioProdutos.forEach(prod => {
+                datalist.innerHTML += `<option value="${prod.nome}"></option>`;
+            });
+        }
+
+        function carregarPerfil() {
+            document.getElementById('txt-nome-fantasia').innerText = dadosPerfil.nome;
+            document.getElementById('txt-cnpj').innerText = dadosPerfil.cnpj;
+        }
+
+        function editarPerfil() {
+            dadosPerfil.nome = prompt("Novo Nome Fantasia:", dadosPerfil.nome) || dadosPerfil.nome;
+            dadosPerfil.cnpj = prompt("Novo CNPJ:", dadosPerfil.cnpj) || dadosPerfil.cnpj;
+            carregarPerfil();
+        }
+
+        function renderizarRelatorioCaixaCompleto() {
+            const container = document.getElementById('lista-consumo-turno');
+            if (!container) return; 
+
+            document.getElementById('cx-avista').innerText = `R$ ${historicoFechamento.avista.toFixed(2)}`;
+            document.getElementById('cx-debito').innerText = `R$ ${historicoFechamento.debito.toFixed(2)}`;
+            document.getElementById('cx-credito').innerText = `R$ ${historicoFechamento.credito.toFixed(2)}`;
+            document.getElementById('cx-pix').innerText = `R$ ${historicoFechamento.pix.toFixed(2)}`;
+            
+            document.getElementById('cx-bruto').innerText = `R$ ${historicoFechamento.faturamentoFechado.toFixed(2)}`;
+            document.getElementById('cx-taxa').innerText = `R$ ${historicoFechamento.taxaServicoColetada.toFixed(2)}`;
+            
+            let totalTurnoFinal = historicoFechamento.faturamentoFechado + historicoFechamento.taxaServicoColetada;
+            document.getElementById('cx-total-geral').innerText = `R$ ${totalTurnoFinal.toFixed(2)}`;
+
+            container.innerHTML = "";
+            if (historicoFechamento.itensConsumidos.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center text-gray-400 text-xs">Nenhum item faturado neste turno.</div>`;
+                return;
+            }
+
+            historicoFechamento.itensConsumidos.forEach(item => {
+                container.innerHTML += `<div class="flex justify-between items-center p-4 hover:bg-gray-50"><span><b>${item.nome}</b></span><div><span class="mr-4 text-gray-500">${item.qtd} un faturadas</span><span class="font-bold text-gray-900">R$ ${item.total.toFixed(2)}</span></div></div>`;
+            });
+        }
+
+        function zerarTurnoCompleto() {
+            if (confirm("Deseja limpar as estatísticas do caixa e zerar o total faturado do turno?")) {
+                historicoFechamento = { faturamentoFechado: 0, taxaServicoColetada: 0, avista: 0, debito: 0, credito: 0, pix: 0, itensConsumidos: [] };
+                renderizarSalao();
+            }
+        }
+
+        // =========================================================================
+        // REGRAS DE IMPRESSÃO PROFISSIONAL (80mm e A4)
+        // =========================================================================
+        function imprimirCupom80mm() {
+            if (mesaSelecionadaIndex === null || !mesas[mesaSelecionadaIndex]) return;
+            let mesa = mesas[mesaSelecionadaIndex];
+            let possuiTaxa = document.getElementById('switch-taxa-mesa').checked;
+            let tx = possuiTaxa ? mesa.valor * 0.1 : 0;
+            const agora = new Date();
+            
+            let conteudoCupom = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    @page { size: 80mm auto; margin: 0; }
+                    body { 
+                        font-family: 'Courier New', Courier, monospace; 
+                        font-size: 12px; 
+                        width: 72mm; 
+                        margin: 0 auto; 
+                        padding: 10px 2px;
+                        color: #000;
+                    }
+                    .text-center { text-align: center; }
+                    .text-right { text-align: right; }
+                    .bold { font-weight: bold; }
+                    .linha-divisoria { border-top: 1px dashed #000; margin: 8px 0; }
+                    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                    td { padding: 2px 0; vertical-align: top; }
+                </style>
+            </head>
+            <body>
+                <div class="text-center">
+                    <span class="bold" style="font-size: 14px;">${dadosPerfil.nome}</span><br>
+                    <span>CNPJ: ${dadosPerfil.cnpj}</span><br>
+                    <span style="font-size: 10px;">${agora.toLocaleDateString('pt-BR')} ${agora.toLocaleTimeString('pt-BR')}</span>
+                </div>
+                
+                <div class="linha-divisoria"></div>
+                <div class="bold">EXTRATO DE CONTA: ${mesa.id}</div>
+                <div class="linha-divisoria"></div>
+                
+                <table>
+                    <thead>
+                        <tr class="bold">
+                            <th align="left">Item</th>
+                            <th align="right" style="width: 25mm;">Qtd x Unit</th>
+                            <th align="right" style="width: 18mm;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+                    
+            mesa.itens.forEach(i => {
+                conteudoCupom += `
+                        <tr>
+                            <td>${i.nome}</td>
+                            <td class="text-right">${i.qtd} x R$ ${i.preco.toFixed(2)}</td>
+                            <td class="text-right">R$ ${i.total.toFixed(2)}</td>
+                        </tr>`;
+            });
+            
+            conteudoCupom += `
+                    </tbody>
+                </table>
+                
+                <div class="linha-divisoria"></div>
+                
+                <table>
+                    <tr>
+                        <td>Subtotal:</td>
+                        <td class="text-right">R$ ${mesa.valor.toFixed(2)}</td>
+                    </tr>`;
+                    
+            if (possuiTaxa) {
+                conteudoCupom += `
+                    <tr>
+                        <td>Taxa de Serviço (10%):</td>
+                        <td class="text-right">R$ ${tx.toFixed(2)}</td>
+                    </tr>`;
+            }
+            
+            conteudoCupom += `
+                    <tr class="bold" style="font-size: 13px;">
+                        <td>TOTAL VALOR:</td>
+                        <td class="text-right">R$ ${(mesa.valor + tx).toFixed(2)}</td>
+                    </tr>
+                </table>
+                
+                <div class="linha-divisoria"></div>
+                <div class="text-center" style="font-size: 10px; margin-top: 15px;">
+                    CommandaBar - Obrigado pela preferência!
+                </div>
+                
+                <script>
+                    window.onload = function() { window.print(); window.close(); }
+                <\/script>
+            </body>
+            </html>`;
+            
+            let janelaImpressao = window.open('', '', 'width=320,height=600'); 
+            janelaImpressao.document.write(conteudoCupom); 
+            janelaImpressao.document.close();
+        }
+
+        function imprimirExtratoCaixaCompleto() {
+            const agora = new Date();
+            let totalGeral = historicoFechamento.faturamentoFechado + historicoFechamento.taxaServicoColetada;
+
+            let conteudoA4 = `
+            <!DOCTYPE html>
+            <html lang="pt-BR">
+            <head>
+                <meta charset="UTF-8">
+                <title>Relatório Gerencial - Fechamento de Caixa</title>
+                <style>
+                    @page { size: A4; margin: 20mm; }
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        font-size: 13px; 
+                        line-height: 1.5;
+                        color: #333;
+                    }
+                    .header { margin-bottom: 25px; border-bottom: 2px solid #111827; padding-bottom: 10px; }
+                    .header h1 { margin: 0; font-size: 22px; color: #111827; }
+                    .header p { margin: 3px 0; color: #666; }
+                    .grid-resumo { display: flex; justify-content: space-between; margin-bottom: 25px; gap: 20px; }
+                    .card-financeiro { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; width: 50%; background-color: #f8fafc; }
+                    .card-financeiro h3 { margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; font-size: 14px; color: #1e293b; }
+                    .linha-valores { display: flex; justify-content: space-between; margin-bottom: 6px; }
+                    .total-destaque { font-size: 16px; font-weight: bold; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 10px; color: #000; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    th { background-color: #f1f5f9; color: #334155; font-weight: bold; text-align: left; padding: 10px; border: 1px solid #e2e8f0; }
+                    td { padding: 10px; border: 1px solid #e2e8f0; }
+                    tr:nth-child(even) { background-color: #f8fafc; }
+                    .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>Relatório de Fechamento Consolidado do Turno</h1>
+                    <p><strong>Estabelecimento:</strong> ${dadosPerfil.nome} | <strong>CNPJ:</strong> ${dadosPerfil.cnpj}</p>
+                    <p><strong>Emissão:</strong> ${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR')}</p>
+                </div>
+
+                <div class="grid-resumo">
+                    <div class="card-financeiro">
+                        <h3>Entradas por Meio de Pagamento</h3>
+                        <div class="linha-valores"><span>Dinheiro / À Vista:</span> <strong>R$ ${historicoFechamento.avista.toFixed(2)}</strong></div>
+                        <div class="linha-valores"><span>Cartão de Débito:</span> <strong>R$ ${historicoFechamento.debito.toFixed(2)}</strong></div>
+                        <div class="linha-valores"><span>Cartão de Crédito:</span> <strong>R$ ${historicoFechamento.credito.toFixed(2)}</strong></div>
+                        <div class="linha-valores"><span>Transferência PIX:</span> <strong>R$ ${historicoFechamento.pix.toFixed(2)}</strong></div>
+                    </div>
+                    
+                    <div class="card-financeiro">
+                        <h3>Resumo Operacional de Faturamento</h3>
+                        <div class="linha-valores"><span>Valor Bruto do Salão:</span> <span>R$ ${historicoFechamento.faturamentoFechado.toFixed(2)}</span></div>
+                        <div class="linha-valores"><span>Taxa de Serviço Coletada (10%):</span> <span>R$ ${historicoFechamento.taxaServicoColetada.toFixed(2)}</span></div>
+                        <div class="linha-valores total-destaque"><span>Total Geral Arrecadado:</span> <span>R$ ${totalGeral.toFixed(2)}</span></div>
+                    </div>
+                </div>
+
+                <h3 style="color: #1e293b; margin-top: 30px; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px;">Itens Consumidos no Turno (Volumetria Geral)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nome do Produto</th>
+                            <th style="width: 100px; text-align: center;">Qtd Faturada</th>
+                            <th style="width: 150px; text-align: right;">Total Faturado</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+            if (historicoFechamento.itensConsumidos.length === 0) {
+                conteudoA4 += `<tr><td colspan="3" style="text-align: center; color: #94a3b8;">Nenhum item faturado neste turno.</td></tr>`;
+            } else {
+                historicoFechamento.itensConsumidos.forEach(item => {
+                    conteudoA4 += `
+                        <tr>
+                            <td><strong>${item.nome}</strong></td>
+                            <td style="text-align: center;">${item.qtd} un</td>
+                            <td style="text-align: right;">R$ ${item.total.toFixed(2)}</td>
+                        </tr>`;
+                });
+            }
+
+            conteudoA4 += `
+                    </tbody>
+                </table>
+
+                <div class="footer">
+                    Documento de uso interno administrativo gerado pelo sistema CommandaBar.
+                </div>
+
+                <script>
+                    window.onload = function() { window.print(); window.close(); }
+                <\/script>
+            </body>
+            </html>`;
+
+            let janelaImpressao = window.open('', '', 'width=800,height=900');
+            janelaImpressao.document.write(conteudoA4);
+            janelaImpressao.document.close();
+        }           
+           // Função para carregar as categorias do Supabase
+           async function carregarCategoriasDoBanco() {
+         try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) return;
+                const userId = session.user.id;
+
+            // Busca apenas as categorias criadas pelo usuário logado
+                const { data, error } = await supabaseClient
+                    .from('categorias')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('nome', { ascending: true });
+
+        if (error) throw error;
+
+                // Alimenta a variável global que o seu layout usa para renderizar
+                categoriasAtivas = data || [];
+        
+                // Executa as funções visuais que já existem no seu sistema
+                renderizarCategorias();
+                atualizarSelectCardapioSalao();
+
+            } catch (err) {
+                console.error("Erro ao carregar categorias:", err.message);
+            }
+}
+
+// Função para carregar os produtos do Supabase
+async function carregarProdutosDoBanco() {
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const userId = session.user.id;
+
+        // Busca apenas os produtos criados pelo usuário logado
+        const { data, error } = await supabaseClient
+            .from('produtos')
+            .select('*')
+            .eq('user_id', userId)
+            .order('nome', { ascending: true });
+
+        if (error) throw error;
+
+        // Alimenta a variável global que o seu layout usa para listar produtos
+        cardapioProdutos = data || [];
+        
+        // Executa a função visual que já existe no seu sistema
+        renderizarProdutosCardapio();
+
+    } catch (err) {
+        console.error("Erro ao carregar produtos:", err.message);
+    }
+}
+      window.onload = async () => {
+    // 1. Carrega as informações básicas do perfil do usuário
+    carregarPerfil();
+    atualizarRelogioSalao();
+    
+    // 2. BUSCA OS DADOS REAIS DO SUPABASE (Evita que sumam no F5)
+    await carregarCategoriasDoBanco();
+    await carregarProdutosDoBanco();
+    
+    // 3. Atualiza os componentes visuais dependentes
+    atualizarSelectCardapioSalao();
+    
+    // 4. Define a aba inicial padrão do sistema
+    mudarAba('perfil');
+};
+    
+    // Removemos a linha 'renderizarSalao();' que causava o erro.
+    // A função abaixo garante que a aba inicial seja aberta corretamente.
+    mudarAba('perfil'); 
+
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="database.js?v=2"></script>
+
+    <script>
+    async function verificarPlanoDoUsuario() {
+        // 1. Pega o usuário logado
+        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+        if (userError || !user) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        // Captura o plano de dentro dos metadados criados no cadastro
+        const planoUsuario = user.user_metadata?.plano;
+        console.log("Plano bruto vindo do Supabase:", planoUsuario);
+
+        const estoqueReal = document.getElementById('conteudo-estoque-real');
+        const telaBloqueio = document.getElementById('tela-bloqueio-estoque-free');
+
+        // 2. REGRA RIGOROSA: Só entra no Pro se estiver explicitamente escrito 'pro'
+        if (planoUsuario === 'pro') {
+            console.log("Acesso PRO Liberado!");
+            if (estoqueReal) estoqueReal.classList.remove('hidden');
+            if (telaBloqueio) telaBloqueio.classList.add('hidden');
+        } else {
+            // Se for 'free', null, undefined ou qualquer outra coisa: TRAVA!
+            console.log("Acesso FREE detectado. Aplicando travas...");
+            if (estoqueReal) estoqueReal.classList.add('hidden');
+            if (telaBloqueio) telaBloqueio.classList.remove('hidden');
+        }
+    }
+
+    // Executa assim que a tela terminar de carregar
+    document.addEventListener('DOMContentLoaded', verificarPlanoDoUsuario);
+
+</script>
+</body>
+</html>
 </body>
 </html>
